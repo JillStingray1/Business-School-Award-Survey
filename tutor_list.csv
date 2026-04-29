@@ -1,0 +1,118 @@
+CurriculumType,Code,Title,Status,Coordinator
+Unit,ACCT1101,Financial Accounting,Active,Leo Langa {00070409} 
+Unit,ACCT2112,Management Accounting,Active,Simeng Liu {00119676} 
+Unit,ACCT2201,Corporate Accounting,Active,Collette Chesters {00079904}
+Unit,ACCT2242,Accounting Information Systems,Active,Dr Fangbin Lin {00119677}
+Unit,ACCT2331,Taxation,Active,Chao Ding {00086841}
+Unit,ACCT3321,Financial Accounting: Theory and Practice,Active,Alex Zhang { 00102969}
+Unit,ACCT3323,Strategic Management Accounting,Active,Stijn Masschelein {00076637}
+Unit,ACCT4440,Management Accounting: Issues and Perspectives,Active,Thanesvary Subraamanniam {00093224}
+Unit,ACCT4471,Advanced Accounting Research,Active,Vincent Chong {00044403}
+Unit,ACCT5432,Introductory Financial Accounting,Active,Collette Chesters {00079904} 
+Unit,ACCT5501,Contemporary Issues in Accounting,Active,Glen Hutchings {00103332} 
+Unit,ACCT5511,Intermediate Corporate Financial Accounting,Active,Glen Hutchings {00103332} 
+Unit,ACCT5522,Principles of Auditing,Active,David Gilchrist {00094229} 
+Unit,ACCT5531,Financial Accounting: Theory and Practice,Active,Lyndie Bayne {00077337} 
+Unit,ACCT5532,Accounting Information Systems,Active,Ricky Chung {00100542} 
+Unit,ACCT5633,Accounting for Planning and Control,Active,Vincent Chong {00044403}  and Thanes Subraamanniam {00093224}
+Unit,ACCT5637,Principles of Taxation,Active,Mark Holub {00018873}
+Unit,BUSN1103,Foundations of Global Business,Active,Donella Caspersz {00032974}
+Unit,BUSN1104,"Business Communication for Change, Influence and Impact",Active,Antony Gray {00059616}
+Unit,BUSN1200,Data Analytics for Business,Active,Yifan Zhong {00111543} (S1)
+Unit,BUSN4401,Qualitative Business Research Methods,Active,Nicole Yang {00117176}
+Unit,BUSN4402,Quantitative Business Research Methods,Active,Doina Olaru {00043465}
+Unit,BUSN5002,Fundamentals of Business Analytics,Active,Yanli Lin {00115767}
+Unit,BUSN5003,Data Storytelling,Active,Yingnan Shi {00115675}
+Unit,BUSN5007,Business Analytics Industry Project,Active,Paul Bergey {00092111} 
+Unit,BUSN5100,Applied Professional Business Communications,Active,Dhammi Azariadis {00070699} & Antony Gray {00059616}
+Unit,BUSN5101,Programming for Business,Active,Tristan Reed {00099842}
+Unit,ECON1000,Economics for Business,Active,Paul Crompton (00030141)
+Unit,ECON1101,Microeconomics: Prices and Markets,Active,Ingebjorg Kristoffersen {00057158} and Luciana Fiorini {00075485} 
+Unit,ECON1102,Macroeconomics: Money and Finance,Active,Elisa Birch {00046996} 
+Unit,ECON1111,Quantitative Methods for Business and Economics,Active,Luciana Fiorini {00075485} 
+Unit,ECON2105,Rise of the Global Economy,Active,Mohammad Farhad {00094958}
+Unit,ECON2233,Microeconomics: Policy and Applications,Active,Tushar Bharati {00099229}
+Unit,ECON2271,Introductory Econometrics,Active,Nam Phan {00119682}
+Unit,ECON3206,Economic Analysis Project,Active,Christopher Parsons {00089776}
+Unit,ECON3220,Development Economics,Active,Christopher Parsons {00089776}
+Unit,ECON3236,International Finance,Active,Girish Bahal {00098881}
+Unit,ECON3302,Applied Microeconomics,Active,Luciana Fiorini {00075485}
+Unit,ECON3310,History of Economic Ideas,Active,David Gilchrist {00094229}
+Unit,ECON3350,"Money, Banking and Financial Markets",Active,Girish Bahal {00098881}
+Unit,ECON3371,Applied Econometric Methods and Data Analysis,Active,Yanli Lin {00115767}
+Unit,ECON4402,Microeconomic Theory,Active,Luciana Fiorini {00075485}
+Unit,ECON4413,Advanced Econometrics,Active,Leandro Magnusson {00075483}
+Unit,ECON4418,Macroeconomic Theory,Active,Jakob Madsen {00031798}
+Unit,ECON5514,Economic Research and Evaluation Methods,Active,Ingebjorg Kristoffersen {00057158}
+Unit,ECON5516,The Economics of Public Policy,Active,Nitin Bharti {00118441}
+Unit,ECON5518,Economics of Global Health and Policy,Active,Anu Rammohan {00069935}
+Unit,ECON5541,Economics for Business: Applications and Policy,Active,Elisa Birch {00046996} 
+Unit,ECON5580,Running Randomised Experiments,Active,Michael Palmer {00098977}
+Unit,EMPL1101,"Employment Relations, Work and Society",Active,Donella Caspersz {00032974}
+Unit,EMPL3270,Negotiation: Theory and Practice,Active,Tom Barratt {00062961}
+Unit,EMPL3301,Globalisation and Work,Active,Michael Gillan {00047236}
+Unit,EMPL5412,Employment Relations,Active,Tom Barratt {00062961}
+Unit,EMPL5511,Employment Relations in a Global Context,Active,Daniel Nicholson {00116180}
+Unit,ENTR3314,Entrepreneurship in Practice,Active,Sebastiaan van Doorn {00097018}
+Unit,ENTR3342,Entrepreneurship,Active,Sebastiaan van Doorn {00097018}
+Unit,ENTR5503,Enterprise and Innovation,Active,Antoine Musu {00058548}
+Unit,FINA1109,Managing Your Personal Finance,Active,Alex Yang {00117068} 
+Unit,FINA1221,Introduction to Finance,Active,Farhan Shazia {00112757} 
+Unit,FINA2205,Practical Finance Analytics,Active,Yihui Lan {00033936}
+Unit,FINA2207,Business Analysis and Valuation,Active,Duc Vo {00055835} and Menglong Na {00119686}
+Unit,FINA2222,Corporate Financial Policy,Active,Thao Hoang {00115355} 
+Unit,FINA3304,Banking: Theory and Practice,Active,Yeok-Fun Mah {00077115}
+Unit,FINA3324,Investment Analysis,Active,Raymond da Silva Rosa {00013725}
+Unit,FINA4481,Asset Pricing,Active,Daniel Cahill {00093230}
+Unit,FINA4482,Advanced Corporate Finance,Active,Rui Zhong {00099239}
+Unit,FINA4590,Research Methods in Accounting and Finance,Active,Stijn Masschelein {00076637}
+Unit,FINA5510,Digital Finance I,Active,Dirk Baur {00091105} 
+Unit,FINA5521,Quantitative Methods in Finance,Active,Yihui Lan {00033936} 
+Unit,FINA5523,Financial Statement Analysis and Business Valuation,Active,Mosharraf Hossain {00086291}
+Unit,FINA5524,Trading and Markets,Active,Zhengge Zhou {00118332} 
+Unit,FINA5525,Case Studies in Finance,Active,Dirk Baur {00091105} 
+Unit,FINA5526,Funds Management ,Active,Russell Poskitt {00089338} 
+Unit,FINA5527,Venture Capital,Active,Ricky Chung {00100542}
+Unit,FINA5529,Topics in Finance 1,Active,Duc Vo {00055835}
+Unit,FINA5531,Fixed Income Securities,Active,Russell Poskitt {00089338}
+Unit,FINA5533,Finance Essentials,Active,Yeok-Fun Mah {00077115} 
+Unit,FINA5555,Student Managed Enterprise Investment Fund (Advanced),Active,Lee Smales {00098821}
+Unit,FINA5631,International Financial Analysis,Active,Gary Smith {00033703}
+Unit,FINA5632,Investments,Active,Thao Hoang {00115355} 
+Unit,HRMT2237,Human Resource Management,Active,Joseph Carpini {00086694} 
+Unit,HRMT3344,Staffing Organisations,Active,Rajiv Amarnani {00101166}
+Unit,HRMT3345,"Managing Jobs, Performance and Wellbeing",Active,Joseph Carpini {00086694}
+Unit,HRMT5501,Diversity and Inclusion,Active,Renata Casado {00072318} 
+Unit,HRMT5502,People Analytics,Active,Bemi Soetan {00113916}
+Unit,HRMT5504,Introduction to Human Resource Management,Active,Aleksandra Luksyte {00076559}
+Unit,HRMT5518,Strategic Human Resource Management,Active,Renata Casado {00072318}
+Unit,HRMT5530,Career Development and Employability,Active,Renata Casado (00072318)
+Unit,INMT5504,Business Process Management,Active,Christina Kum {00040073}
+Unit,INMT5507,Information Management and Logistics Capstone Projects,Active,Christina Kum {00040073}
+Unit,INMT5518,Supply Chain Analytics,Active,Mehdi Rajabi Asadabadi {00112246}
+Unit,INMT5526,Business Intelligence,Active,Tristan Reed {00099842}
+Unit,INMT5527,Process Mining and Analytics,Active,Michael Flynn {00115306}
+Unit,MGMT1135,Organisational Behaviour,Active,Long He {00113903}
+Unit,MGMT1136,Management and Organisations,Active,Caleb Goods {00085932} 
+Unit,MGMT2302,Leadership,Active,Gillian Yeo {00066661}
+Unit,MGMT2341,International Management,Active,Ruth Tigges Vale {00111779}
+Unit,MGMT3335,Enterprise Systems,Active,Maduka Subasinghage {00115645)
+Unit,MGMT3346,Managing Organisational Change,Active,Benita Hube {00061787}
+Unit,MGMT5504,Data Analysis and Decision Making,Active,Brett Smith {00031300} 
+Unit,MGMT5507,Management and Organisations,Active,Benita Hube {00061787}
+Unit,MGMT5511,Introduction to Global Business,Active,Shannice Ong 
+Unit,MGMT5526,Principles for Responsible Management,Active,Ruth Tigges Vale {00111779}
+Unit,MGMT5660,Applied Project Management,Active,Stephen Byers {00099403} 
+Unit,MKTG1203,Introduction to Marketing,Active,Jason Weismueller {00103718} 
+Unit,MKTG2305,Marketing Research,Active,Ava Yu {00110475}
+Unit,MKTG3303,New Product Development,Active,Mila Tarabashkina {00096980}
+Unit,MKTG3304,Brand Management,Active,Andreawan Honora {00113489}
+Unit,MKTG3308,Marketing Analytics,Active,Jason Weismueller {00103718}
+Unit,MKTG5408,Marketing Analysis and Planning,Active,Nicole Yang {00117176}
+Unit,MKTG5465,Applied Marketing Research,Active,Liudmila Tarabashkina {00096980}
+Unit,MKTG5501,Integrated Marketing Communications,Active,Fang Liu {00032487}
+Unit,MKTG5502,Social Media Marketing,Active,David Goyeneche {00119545}
+Unit,MKTG5504,Big Data in Marketing,Active,Emma Joenpolvi {00119691}
+Unit,MKTG5561,Marketing Management,Active,Lars Casper Ferm {00116733} 
+Unit,MKTG5578,Business Relationship Management,Active,Sharon Purchase {00046354}
+Unit,PACM1101,Communication in Practice,Active,Antony Gray {00059616}
