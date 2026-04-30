@@ -1,24 +1,24 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { handleTutorList } from './parse_tutors'
 
 
 
 class App {
     private mainWindow: BrowserWindow | null = null;
-
     constructor() {
         // handles app updates through squirrel
         if (started) {
             app.quit();
         }
-
         app.on('ready', () => this.createWindow());
         app.on('window-all-closed', () => this.onWindowAllClosed());
         app.on('activate', () => this.onActivate());
-        if (app.isReady()) {
+        app.whenReady().then(() => {
             this.setupCSP();
-        }
+            this.setupIPC();
+        })
     }
 
     private createWindow(): void {
@@ -70,7 +70,11 @@ class App {
                     }
                 })
             })
+    }
 
+    private setupIPC(): void {
+        // setups functions to read and parse tutorlist csv.
+        ipcMain.on('send-file', handleTutorList)
     }
 }
 
