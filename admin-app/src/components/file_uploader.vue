@@ -9,22 +9,24 @@ import {ref} from 'vue';
 
 
 export default {
-  // `setup` is a special hook dedicated for the Composition API.
   setup() {
-    var content = ref("") 
+    // initalize reactive elements
+    let content = ref("")
 
-
-    const readFileUpload = async (event) => {
+    async function readFileUpload(event) {
         const file = event.target.files[0]; // Get the first selected file
         if (file) {
             try {
                 content.value = await file.text(); // Read file as text
+                window.electronAPI.sendFile(await file.arrayBuffer())
                 console.log(content);
             } catch (err) {
                 console.error('Error reading file:', err);
             }
         }
+    
     }
+    
     // expose the ref to the template
     return {
         content,
