@@ -102,7 +102,7 @@ This table stores nomination form submissions.
 | `id`                | `bigint`                   | Yes         | Database primary key for each nomination submission.                          |
 | `student_name`      | `text`                     | Yes         | Name of the student submitting the nomination.                                |
 | `student_id`        | `text`                     | Yes         | Student ID of the nominator. Stored as text to preserve leading zeros.        |
-| `scholar_unique_id` | `text`                     | Recommended | This is scholars table row ID. This should match `scholars.id` when possible. |
+| `scholar_unique_id` | `text`                     | Recommended | Foreign key/reference to `scholars.id`. This identifies the selected teaching record row. |
 | `scholar_name`      | `text`                     | Yes         | Name of the nominated scholar/staff member.                                   |
 | `unit_code`         | `text`                     | Yes         | Unit code related to the nomination.                                          |
 | `unit_name`         | `text`                     | Optional    | Full unit name, if available.                                                 |
@@ -114,7 +114,8 @@ This table stores nomination form submissions.
 ### Notes
 
 - This is the main table for student submissions.
-- `scholar_unique_id` stores scholars table row ID..
+- `scholar_unique_id` stores the selected `scholars.id` row value, not the staff member's official `scholar_id`.
+- Use `scholar_name` for display, but use `scholar_unique_id` when the system needs to identify the selected teaching record.
 - The frontend should insert new records into this table, but it should not publicly read all nominations.
 
 ---
@@ -126,7 +127,7 @@ This table stores nomination form submissions.
 | Student Name                                                  | `nominations`  | `student_name`      |
 | Student ID                                                    | `nominations`  | `student_id`        |
 | Who would you like to nominate for Teaching & Learning Award? | `nominations`  | `scholar_name`      |
-| Scholar/Staff ID                                              | `nominations`  | `scholar_id`        |
+| Selected teaching record                                      | `nominations`  | `scholar_unique_id` |
 | Unit Code                                                     | `nominations`  | `unit_code`         |
 | Unit Name                                                     | `nominations`  | `unit_name`         |
 | Teaching Period                                               | `nominations`  | `teaching_period`   |
@@ -169,7 +170,7 @@ This table stores nomination form submissions.
 To avoid duplicate teaching records, the team should avoid creating two identical rows with the same:
 
 ```text
-scholar_unique_id + unit + teaching_period + role_of_unit
+scholar_id + unit + teaching_period + role_of_unit
 ```
 
 This still allows the same scholar to appear in multiple rows when they teach different units, teaching periods, or roles.
