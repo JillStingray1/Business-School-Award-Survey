@@ -119,59 +119,6 @@ async function readFileUpload(data: { file: UploadFileInfo }) {
   }
 }
 
-async function handleUpload(data: { file: UploadFileInfo }, type: 'Tutor List' | 'UC List') {
-  const file = data.file.file;
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
-    const errors: string[] = [];
-
-    // Basic validation
-    if (lines.length < 2) {
-      errors.push('File appears to be empty or has no data rows.');
-    } else {
-      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const requiredHeaders = ['curriculumtype', 'code', 'title', 'status', 'coordinator'];
-      requiredHeaders.forEach(h => {
-        if (!header.includes(h)) errors.push(`Missing required column: "${h}"`);
-      });
-
-      lines.slice(1, 5).forEach((line, idx) => {
-        const parts = line.split(',');
-        if (parts.length < 5) errors.push(`Row ${idx + 2}: insufficient columns (got ${parts.length}, expected 5+)`);
-        if (parts[3]?.trim() !== 'Active' && parts[3]?.trim() !== 'Inactive') {
-          errors.push(`Row ${idx + 2}: invalid Status value "${parts[3]?.trim() ?? '?'}" — expected "Active" or "Inactive"`);
-        }
-      });
-    }
-
-    const status = errors.length === 0 ? 'Success' : errors.length < 3 ? 'Partial' : 'Failed';
-    uploads.value.unshift({
-      id: `UPL${String(uploads.value.length + 1).padStart(3, '0')}`,
-      fileName: file.name,
-      uploadedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      uploadedBy: 'Admin',
-      recordCount: lines.length - 1,
-      status,
-      errors,
-      type,
-    });
-
-    validationResult.value = {
-      type: status === 'Success' ? 'success' : status === 'Partial' ? 'warning' : 'error',
-      title: status === 'Success' ? 'Upload Successful' : status === 'Partial' ? 'Upload Completed with Warnings' : 'Upload Failed',
-      message: `Processed ${lines.length - 1} record(s) from "${file.name}".`,
-      errors,
-    };
-
-    if (status === 'Success') message.success('Master data uploaded successfully.');
-    else message.warning('Upload completed with validation warnings. Please review.');
-  } catch (err) {
-    message.error(`Failed to process file: ${String(err)}`);
-  }
-}
-
 function statusTagType(status: string): 'success' | 'warning' | 'error' {
   switch (status) {
     case 'Success': return 'success';
