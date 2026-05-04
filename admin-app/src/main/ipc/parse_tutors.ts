@@ -55,7 +55,6 @@ function parse_tutor_list(excel_file: Blob): any {
       data[contents.SheetNames[i]].push(res)
     })
   }
-  console.log(data)
   return data
 }
 
@@ -80,7 +79,41 @@ async function post_tutors_to_db(supabase: SupabaseClient, tutors: any): Promise
       })
     }
   });
-  const { data, error } = await supabase.from("scholars").insert(tutor_data).select()
+  // const { data, error } = await supabase.from("scholars").insert(tutor_data).select()
 }
 
+
+/**
+ * Reformats lecturers into format matching the databases' table headers and
+ * inserts the data into the database
+ *
+ * Not functional right now due to issues with the formatting of lecturer data in the excel spreadsheet
+ *
+ * @param supabase supabase connection
+ * @param lecturers list of tutors extracted from excel
+ */
+async function post_lecturers_to_db(supabase: SupabaseClient, lecturers: any): Promise<void> {
+  let lecturer_data: ScholarData[] = []
+  lecturers.forEach((element: any) => {
+    if (element["Coordinator"] != null) {
+      let coordinators = element["Coordinator"].split("^(and)|&$")
+      console.log(coordinators)
+      coordinators.forEach((coordinator: string) => {
+        let temp = coordinator.trim().split("{")
+        console.log(temp)
+        lecturer_data.push({
+          "name": temp[0].trim(),
+          "unit_name": element["Unit Name"],
+          "unit": element["Unit"],
+          "role_of_unit": "Lecturer",
+          "staff_id": temp[1].trim().replace("}", ""),
+        })
+      })
+
+
+    }
+  });
+  console.log(lecturer_data)
+  // const { data, error } = await supabase.from("scholars").insert(lecturer_data).select()
+}
 
