@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import path from 'node:path';
 import fs from 'node:fs';
 
-// Code to take in supabase key from environment file (probably should move somewhere else later)
+//! Code to take in supabase key from environment file (probably should move somewhere else later)
 function loadEnvFile(): void {
     const envPath = path.resolve(process.cwd(), '.env');
 
@@ -51,6 +51,7 @@ function requireEnv(name: string): string {
 
 export const SUPABASE_URL = requireEnv('SUPABASE_URL');
 export const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || requireEnv('SUPABASE_KEY');
+//! end of testing code
 
 /**
  * This function handles the parsing and upload of tutor data in the database
@@ -116,7 +117,7 @@ function parse_tutor_list(excel_file: Blob): any {
  * @param tutors list of tutors extracted from excel
  */
 async function post_tutors_to_db(supabase: SupabaseClient, tutors: any): Promise<void> {
-    let tutor_data: any[] = []
+    let tutor_data: TutorData[] = []
     tutors.forEach((element: any) => {
         if (element["Full Name"] != null) {
             tutor_data.push({
@@ -129,4 +130,14 @@ async function post_tutors_to_db(supabase: SupabaseClient, tutors: any): Promise
         }
     });
     const { data, error } = await supabase.from("scholars").insert(tutor_data).select()
+}
+
+
+interface TutorData {
+    "name": string,
+    "unit"?: string,
+    "unit_name"?: string,
+    "role_of_unit"?: string,
+    "staff_id"?: string,
+    "semester"?: string,
 }
