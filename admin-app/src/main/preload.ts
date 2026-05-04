@@ -48,6 +48,10 @@ const bridge = {
   closeAwardPeriod(id: string): Promise<IpcResult<AwardPeriod>> {
     return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_CLOSE, { id }) as Promise<IpcResult<AwardPeriod>>;
   },
+  sendFile(excel_file: ArrayBuffer): void {
+    ipcRenderer.send('send-file', excel_file)
+  },
+
 };
 
 contextBridge.exposeInMainWorld('electronAPI', bridge);

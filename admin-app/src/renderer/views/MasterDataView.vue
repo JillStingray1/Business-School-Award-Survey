@@ -3,37 +3,22 @@
     <n-h2 style="margin-bottom: 20px;">Master Data</n-h2>
 
     <!-- Upload panel -->
-    <n-grid :cols="2" :x-gap="16" :y-gap="16" style="margin-bottom: 24px;">
+    <n-grid :cols="1" :x-gap="16" :y-gap="16" style="margin-bottom: 24px;">
       <n-gi>
         <n-card title="Upload Tutor List">
           <n-upload
-            accept=".csv"
+            accept=".xlsx"
             :max="1"
-            @change="(d) => handleUpload(d, 'Tutor List')"
+            @change="(d) => readFileUpload(d)"
           >
             <n-upload-dragger>
               <n-icon size="36" style="margin-bottom: 8px;"><CloudUploadOutline /></n-icon>
-              <n-text>Click or drag tutor_list.csv here</n-text>
+              <n-text>Click or drag the Tutor list here</n-text>
               <n-p depth="3" style="margin-top: 4px; font-size: 12px;">
-                Format: CurriculumType, Code, Title, Status, Coordinator
+                Format: 2 Sheets, one titled Unit Coordinators, other titled Casual Tutors
               </n-p>
-            </n-upload-dragger>
-          </n-upload>
-        </n-card>
-      </n-gi>
-      <n-gi>
-        <n-card title="Upload UC List">
-          <n-upload
-            accept=".csv"
-            :max="1"
-            @change="(d) => handleUpload(d, 'UC List')"
-          >
-            <n-upload-dragger>
-              <n-icon size="36" style="margin-bottom: 8px;"><CloudUploadOutline /></n-icon>
-              <n-text>Click or drag uc_list.csv here</n-text>
-              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">
-                Format: CurriculumType, Code, Title, Status, Coordinator
-              </n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Unit Coordinators have: | CurriculumType | Code | Title | Status | Coordinator | as titles</n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Casual Tutors have: | Staff Number | Unit | Unit Name | First Name | Last Name | Full Name | Department | Email | as titles</n-p>
             </n-upload-dragger>
           </n-upload>
         </n-card>
@@ -120,6 +105,19 @@ const filteredUnits = computed(() => {
     u.coordinator.toLowerCase().includes(q),
   );
 });
+
+async function readFileUpload(data: { file: UploadFileInfo }) {
+  console.log("got here")
+  const file = data.file.file
+    if (file) {
+      try {
+                window.electronAPI.sendFile(await file.arrayBuffer())
+                console.log("got here 1")
+      } catch (err) {
+                console.error('Error reading file:', err);
+    }
+  }
+}
 
 async function handleUpload(data: { file: UploadFileInfo }, type: 'Tutor List' | 'UC List') {
   const file = data.file.file;
