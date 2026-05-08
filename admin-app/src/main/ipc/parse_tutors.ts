@@ -79,7 +79,7 @@ async function post_tutors_to_db(supabase: SupabaseClient, tutors: any): Promise
       })
     }
   });
-  // const { data, error } = await supabase.from("scholars").insert(tutor_data).select()
+  const { data, error } = await supabase.from("scholars").insert(tutor_data).select()
 }
 
 
