@@ -43,20 +43,15 @@ createApp({
       return [s.name, s.unit, s.unit_name, s.teaching_period, s.role_of_unit].filter(Boolean).join(" · ")
     })
 
-    function getScholarId(scholar) {
-      return scholar?.[dbFields.scholarPrimaryKey]
-    }
-
-    function toScholarOption(scholar) {
-      return makeScholarOption(scholar, dbFields.scholarPrimaryKey)
-    }
-
+    /**
+     * Adds a selected scholar to the dropdown options if it is not already listed.
+     */
     function ensureScholarOption(scholar) {
-      const scholarId = getScholarId(scholar)
+      const scholarId = scholar?.[dbFields.scholarPrimaryKey]
       const exists = scholarOptions.value.some((option) => option.value === scholarId)
 
       if (!exists) {
-        scholarOptions.value = [toScholarOption(scholar), ...scholarOptions.value]
+        scholarOptions.value = [makeScholarOption(scholar, dbFields.scholarPrimaryKey), ...scholarOptions.value]
       }
     }
 
@@ -92,6 +87,10 @@ createApp({
       ]
     }
 
+    /**
+     * Checks whether nominations are currently open.
+     * It also updates the active award period, form availability, and page status message.
+     */
     async function checkNominationPeriod() {
       periodChecking.value = true
       nominationOpen.value = false
@@ -155,12 +154,15 @@ createApp({
       }
     }
 
+    /**
+     * Searches scholars by nominee name and updates the nominee dropdown options.
+     */
     async function fetchScholars(query) {
       scholarLoading.value = true
 
       try {
         const data = await window.ApiClient.searchScholarsByName(query)
-        scholarOptions.value = data.map(toScholarOption)
+        scholarOptions.value = data.map((scholar) => makeScholarOption(scholar, dbFields.scholarPrimaryKey))
       } catch (err) {
         scholarOptions.value = []
         console.error(err)
@@ -169,6 +171,9 @@ createApp({
       }
     }
 
+    /**
+     * Searches scholars by unit code and displays staff related to that unit.
+     */
     async function searchByUnitCode() {
       const query = String(form.unitCode || "").trim()
 
@@ -189,7 +194,7 @@ createApp({
         unitResults.value = data
 
         if (unitResults.value.length > 0) {
-          scholarOptions.value = unitResults.value.map(toScholarOption)
+          scholarOptions.value = unitResults.value.map((scholar) => makeScholarOption(scholar, dbFields.scholarPrimaryKey))
         }
       } catch (err) {
         unitResults.value = []
@@ -199,6 +204,9 @@ createApp({
       }
     }
 
+    /**
+     * Debounces unit-code searches so the API is not called on every key press.
+     */
     function handleUnitCodeInput(value) {
       clearTimeout(unitSearchTimer)
 
@@ -213,12 +221,15 @@ createApp({
       unitSearchTimer = setTimeout(searchByUnitCode, 500)
     }
 
+    /**
+     * Applies the selected scholar's details to the nomination form fields.
+     */
     function applyScholarToForm(scholar) {
       if (!scholar) return
 
       ensureScholarOption(scholar)
       selectedScholar.value = scholar
-      form.scholarId = getScholarId(scholar)
+      form.scholarId = scholar?.[dbFields.scholarPrimaryKey]
 
       if (scholar.unit) form.unitCode = scholar.unit
       if (scholar.unit_name) form.unitName = scholar.unit_name
@@ -226,10 +237,9 @@ createApp({
       if (scholar.role_of_unit) form.roleOfUnit = scholar.role_of_unit
     }
 
-    function selectRelatedScholar(scholar) {
-      applyScholarToForm(scholar)
-    }
-
+    /**
+     * Debounces nominee-name searches and clears the current selected scholar while searching.
+     */
     function handleScholarSearch(query) {
       selectedScholar.value = null
       form.scholarId = null
@@ -243,6 +253,9 @@ createApp({
       debounceTimer = setTimeout(() => fetchScholars(query.trim()), 300)
     }
 
+    /**
+     * Handles selecting a scholar from the nominee dropdown.
+     */
     function handleScholarSelect(value) {
       if (!value) {
         selectedScholar.value = null
@@ -255,6 +268,9 @@ createApp({
       applyScholarToForm(selectedOption.scholar)
     }
 
+    /**
+     * Validates the form and submits the nomination to Supabase.
+     */
     async function submitNomination() {
       try {
         await formRef.value?.validate()
@@ -270,7 +286,7 @@ createApp({
         await window.ApiClient.submitNomination({
           student_name: form.studentName.trim(),
           student_id: form.studentId.trim(),
-          [dbFields.nominationScholarField]: getScholarId(selectedScholar.value),
+          [dbFields.nominationScholarField]: selectedScholar.value?.[dbFields.scholarPrimaryKey],
           scholar_name: selectedScholar.value.name,
           unit_code: form.unitCode.trim(),
           unit_name: form.unitName.trim(),
@@ -288,6 +304,9 @@ createApp({
       }
     }
 
+    /**
+     * Clears the form, search results, and submission state after a nomination is submitted.
+     */
     function resetForm() {
       form.studentName = ""
       form.studentId = ""
@@ -333,7 +352,7 @@ createApp({
       handleScholarSelect,
       handleUnitCodeInput,
       searchByUnitCode,
-      selectRelatedScholar,
+      applyScholarToForm,
       submitNomination,
       resetForm,
       formatDateTime
