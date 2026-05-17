@@ -67,7 +67,7 @@ one scholar/staff member + one unit + one teaching period + one role
 | `unit_name`       | `text`                     | Yes      | Full unit name.                                                     |
 | `teaching_period` | `text`                     | Yes      | Teaching period, such as Semester 1, Semester 2, or Trimester.      |
 | `role_of_unit`    | `text`                     | Yes      | The scholar's role in this unit.                                    |
-| `created_at`      | `timestamp with time zone` | Optional | Record creation time.                                               |
+| `Email`           | `text`                     | Yes      | The scholar's email, used for notifying them of their nomination    |
 
 ### Important Difference
 
