@@ -230,8 +230,9 @@ After changing the database, update this document with:
 
 Use this table to record future database changes.
 
-| Date       | Changed By | Table      | Change              | Reason                    | Frontend/Backend Update Needed |
-| ---------- | ---------- | ---------- | ------------------- | ------------------------- | ------------------------------ |
-| YYYY-MM-DD | Name       | Table name | Describe the change | Explain why it was needed | Describe related code updates  |
+| Date       | Changed By | Table      | Change                                   | Reason                                                                                      | Frontend/Backend Update Needed |
+| ---------- | ---------- | ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| YYYY-MM-DD | Name       | Table name | Describe the change                      | Explain why it was needed                                                                   | Describe related code updates  |
+| 2026-05-17 | Jerry      | scholars   | Removed created at and added email field | Need to store emails for notifications, date created field is not that useful for anything  | None                           |
 
 ##
