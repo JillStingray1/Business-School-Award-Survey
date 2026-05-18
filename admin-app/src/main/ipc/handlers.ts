@@ -18,6 +18,7 @@ import {
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
+import { handleTutorList } from './parse_tutors';
 
 interface AwardPeriodRow {
   id: string;
@@ -312,6 +313,8 @@ export function registerIpcHandlers(): void {
       }
     },
   );
+
+  ipcMain.on("send-file", handleTutorList);
 
   console.log('[IPC] Handlers registered');
 }

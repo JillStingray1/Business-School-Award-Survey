@@ -49,6 +49,10 @@ const bridge = {
   closeAwardPeriod(id: string): Promise<IpcResult<AwardPeriod>> {
     return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_CLOSE, { id }) as Promise<IpcResult<AwardPeriod>>;
   },
+  sendFile(excel_file: ArrayBuffer): void {
+    ipcRenderer.send('send-file', excel_file)
+  },
+
 
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
     return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;

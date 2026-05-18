@@ -91,3 +91,17 @@ export interface IpcResult<T = unknown> {
   data?: T;
   error?: string;
 }
+
+/**
+ * Interface for ScholarData, which represents
+ * the JSON format to upload to the `scholars`
+ * table in the database
+ */
+export interface ScholarData {
+  "name": string,
+  "unit"?: string,
+  "unit_name"?: string,
+  "role_of_unit"?: string,
+  "staff_id"?: string,
+  "semester"?: string,
+}
