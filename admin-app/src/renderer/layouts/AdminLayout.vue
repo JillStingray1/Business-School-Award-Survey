@@ -81,6 +81,7 @@ function renderIcon(emoji: string) {
 const menuOptions: MenuOption[] = [
   { label: 'Dashboard',     key: '/dashboard',     icon: renderIcon('📊') },
   { label: 'Nominations',   key: '/nominations',   icon: renderIcon('📝') },
+  { label: 'Student Responses', key: '/student-responses', icon: renderIcon('✉️') },
   { label: 'Applications',  key: '/applications',  icon: renderIcon('📋') },
   { label: 'Master Data',   key: '/master-data',   icon: renderIcon('🗂️') },
   { label: 'Period Control', key: '/period-control', icon: renderIcon('⏰') },
@@ -91,6 +92,7 @@ const menuOptions: MenuOption[] = [
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':      'Dashboard',
   '/nominations':    'Nominations',
+  '/student-responses': 'Student Responses',
   '/applications':   'Applications',
   '/master-data':    'Master Data',
   '/period-control': 'Period Control',

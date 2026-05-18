@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   PERIOD_LIST: 'period:list',
   PERIOD_SAVE: 'period:save',
   PERIOD_CLOSE: 'period:close',
+  STUDENT_RESPONSES_LIST: 'student-responses:list',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -70,6 +71,19 @@ export interface AwardPeriodSavePayload {
   applicationOpenAt: string;
   applicationCloseAt: string;
   isActive: boolean;
+}
+
+export interface StudentResponse {
+  id: number;
+  studentName: string;
+  studentId: string;
+  scholarName: string;
+  unitCode: string;
+  unitName: string | null;
+  teachingPeriod: string;
+  roleOfUnit: string;
+  statementSupport: string;
+  createdAt?: string;
 }
 
 export interface IpcResult<T = unknown> {

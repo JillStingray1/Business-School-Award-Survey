@@ -14,6 +14,7 @@ import type {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  StudentResponse,
 } from '../shared/types';
 
 const bridge = {
@@ -52,6 +53,10 @@ const bridge = {
     ipcRenderer.send('send-file', excel_file)
   },
 
+
+  listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', bridge);
