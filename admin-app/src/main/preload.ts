@@ -1,0 +1,65 @@
+/**
+ * Preload script — runs in an isolated context before the renderer.
+ *
+ * Only explicitly listed APIs are exposed to the renderer via
+ * contextBridge.  Never expose ipcRenderer directly.
+ */
+
+import { contextBridge, ipcRenderer } from 'electron';
+import { IPC_CHANNELS } from '../shared/types';
+import type {
+  IpcChannel,
+  IpcResult,
+  DbQueryPayload,
+  ApiRequestPayload,
+  AwardPeriod,
+  AwardPeriodSavePayload,
+  StudentResponse,
+} from '../shared/types';
+
+const bridge = {
+  /** Invoke an IPC channel and return a typed result. */
+  invoke<T = unknown>(channel: IpcChannel, payload?: unknown): Promise<IpcResult<T>> {
+    return ipcRenderer.invoke(channel, payload) as Promise<IpcResult<T>>;
+  },
+
+  /** Convenience wrapper for database queries. */
+  dbQuery<T = unknown>(payload: DbQueryPayload): Promise<IpcResult<T>> {
+    return ipcRenderer.invoke('db:query', payload) as Promise<IpcResult<T>>;
+  },
+
+  /** Convenience wrapper for database write operations. */
+  dbRun(payload: DbQueryPayload): Promise<IpcResult> {
+    return ipcRenderer.invoke('db:run', payload);
+  },
+
+  /** Convenience wrapper for proxied API calls. */
+  apiRequest<T = unknown>(payload: ApiRequestPayload): Promise<IpcResult<T>> {
+    return ipcRenderer.invoke('api:request', payload) as Promise<IpcResult<T>>;
+  },
+
+  listAwardPeriods(): Promise<IpcResult<AwardPeriod[]>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_LIST) as Promise<IpcResult<AwardPeriod[]>>;
+  },
+
+  saveAwardPeriod(payload: AwardPeriodSavePayload): Promise<IpcResult<AwardPeriod>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_SAVE, payload) as Promise<IpcResult<AwardPeriod>>;
+  },
+
+  closeAwardPeriod(id: string): Promise<IpcResult<AwardPeriod>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_CLOSE, { id }) as Promise<IpcResult<AwardPeriod>>;
+  },
+  sendFile(excel_file: ArrayBuffer): void {
+    ipcRenderer.send('send-file', excel_file)
+  },
+
+
+  listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
+  },
+};
+
+contextBridge.exposeInMainWorld('electronAPI', bridge);
+
+/** Augment the global Window type so the renderer has full TypeScript support. */
+export type ElectronAPI = typeof bridge;
