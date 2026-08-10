@@ -14,7 +14,9 @@ import {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  ApprovalStatus,
   StudentResponse,
+  StudentResponseStatusUpdatePayload,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
@@ -42,6 +44,7 @@ interface NominationRow {
   teaching_period: string;
   role_of_unit: string;
   statement_support: string;
+  approval_status?: string | null;
   created_at?: string;
 }
 
@@ -91,8 +94,39 @@ function toStudentResponse(row: NominationRow): StudentResponse {
     teachingPeriod: row.teaching_period,
     roleOfUnit: row.role_of_unit,
     statementSupport: row.statement_support,
+    approvalStatus: normaliseApprovalStatus(row.approval_status),
     createdAt: row.created_at,
   };
+}
+
+function normaliseApprovalStatus(value?: string | null): ApprovalStatus {
+  if (value === 'Approved' || value === 'Rejected') {
+    return value;
+  }
+
+  return 'Pending';
+}
+
+function isApprovalStatusColumnMissing(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const supabaseError = error as SupabaseLikeError;
+  const message = `${supabaseError.message ?? ''} ${supabaseError.details ?? ''}`.toLowerCase();
+  return supabaseError.code === '42703'
+    || supabaseError.code === 'PGRST204'
+    || message.includes('approval_status');
+}
+
+function validateStatusUpdatePayload(payload: StudentResponseStatusUpdatePayload): void {
+  if (!Number.isInteger(payload.id) || payload.id <= 0) {
+    throw new Error('A valid nomination id is required.');
+  }
+
+  if (!['Pending', 'Approved', 'Rejected'].includes(payload.approvalStatus)) {
+    throw new Error('A valid approval status is required.');
+  }
 }
 
 function toAwardPeriod(row: AwardPeriodRow): AwardPeriod {
@@ -277,18 +311,69 @@ export function registerIpcHandlers(): void {
     IPC_CHANNELS.STUDENT_RESPONSES_LIST,
     async (): Promise<IpcResult<StudentResponse[]>> => {
       try {
-        const { data, error } = await getSupabaseClient()
+        const client = getSupabaseClient();
+        const { data, error } = await client
           .from('nominations')
           .select(
-            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,created_at',
+            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,approval_status,created_at',
           )
           .order('created_at', { ascending: false });
 
         if (error) {
+          if (isApprovalStatusColumnMissing(error)) {
+            const fallback = await client
+              .from('nominations')
+              .select(
+                'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,created_at',
+              )
+              .order('created_at', { ascending: false });
+
+            if (fallback.error) {
+              throw fallback.error;
+            }
+
+            return {
+              success: true,
+              data: (fallback.data ?? []).map(row => toStudentResponse(row as NominationRow)),
+            };
+          }
+
           throw error;
         }
 
         return { success: true, data: (data ?? []).map(row => toStudentResponse(row as NominationRow)) };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.STUDENT_RESPONSES_UPDATE,
+    async (_event, payload: StudentResponseStatusUpdatePayload): Promise<IpcResult<StudentResponse>> => {
+      try {
+        validateStatusUpdatePayload(payload);
+
+        const { data, error } = await getSupabaseClient()
+          .from('nominations')
+          .update({ approval_status: payload.approvalStatus })
+          .eq('id', payload.id)
+          .select(
+            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,approval_status,created_at',
+          )
+          .single();
+
+        if (error) {
+          if (isApprovalStatusColumnMissing(error)) {
+            throw new Error(
+              'Approval status is not available in the database yet. Ask the database owner to add the approval_status field before approving or rejecting responses.',
+            );
+          }
+
+          throw error;
+        }
+
+        return { success: true, data: toStudentResponse(data as NominationRow) };
       } catch (err) {
         return { success: false, error: formatError(err) };
       }

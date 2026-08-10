@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   PERIOD_SAVE: 'period:save',
   PERIOD_CLOSE: 'period:close',
   STUDENT_RESPONSES_LIST: 'student-responses:list',
+  STUDENT_RESPONSES_UPDATE: 'student-responses:update',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -73,6 +74,13 @@ export interface AwardPeriodSavePayload {
   isActive: boolean;
 }
 
+export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface StudentResponseStatusUpdatePayload {
+  id: number;
+  approvalStatus: ApprovalStatus;
+}
+
 export interface StudentResponse {
   id: number;
   studentName: string;
@@ -83,6 +91,7 @@ export interface StudentResponse {
   teachingPeriod: string;
   roleOfUnit: string;
   statementSupport: string;
+  approvalStatus: ApprovalStatus;
   createdAt?: string;
 }
 
