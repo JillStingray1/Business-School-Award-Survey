@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": ".viewer-test-dist",
+    "rootDir": "src",
+    "sourceMap": false,
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": [
+    "src/shared/types/index.ts",
+    "src/renderer/views/studentResponseViewerModel.ts",
+    "src/renderer/views/studentResponseViewerModel.test.ts"
+  ]
+}

@@ -91,3 +91,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Isolated Student Response Viewer tests
+.viewer-test-dist/
