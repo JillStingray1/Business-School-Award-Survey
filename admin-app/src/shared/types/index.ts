@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   PERIOD_SAVE: 'period:save',
   PERIOD_CLOSE: 'period:close',
   STUDENT_RESPONSES_LIST: 'student-responses:list',
+  EXPORT_STUDENT_RESPONSES: 'student-responses:export',
 
   // API proxy
   API_REQUEST: 'api:request',

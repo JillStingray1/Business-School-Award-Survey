@@ -18,7 +18,8 @@ import {
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
-import { handleTutorList } from './parse_tutors';
+import { handleTutorList } from './parseTutors';
+import { getStudentResponsesList, exportStudentResponsesToCsv } from './getStudentResponses'
 
 interface AwardPeriodRow {
   id: string;
@@ -52,7 +53,7 @@ interface SupabaseLikeError {
   code?: string;
 }
 
-function formatError(err: unknown): string {
+export function formatError(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
   }
@@ -273,27 +274,9 @@ export function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.handle(
-    IPC_CHANNELS.STUDENT_RESPONSES_LIST,
-    async (): Promise<IpcResult<StudentResponse[]>> => {
-      try {
-        const { data, error } = await getSupabaseClient()
-          .from('nominations')
-          .select(
-            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,created_at',
-          )
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          throw error;
-        }
-
-        return { success: true, data: (data ?? []).map(row => toStudentResponse(row as NominationRow)) };
-      } catch (err) {
-        return { success: false, error: formatError(err) };
-      }
-    },
-  );
+  // handlers for student responses, located in getStudentResponses
+  ipcMain.handle(IPC_CHANNELS.STUDENT_RESPONSES_LIST, getStudentResponsesList);
+  ipcMain.handle(IPC_CHANNELS.EXPORT_STUDENT_RESPONSES, exportStudentResponsesToCsv);
 
   // -------------------------------------------------------------------------
   // API proxy handler — keeps API keys out of the renderer
