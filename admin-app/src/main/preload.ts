@@ -57,6 +57,7 @@ const bridge = {
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
     return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
   },
+  exportStudentResponses: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_STUDENT_RESPONSES),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', bridge);
