@@ -59,13 +59,13 @@
 
     <n-space vertical :size="12">
       <n-alert
-        v-if="stats.pendingNominationsToReview > 0"
+        v-if="pendingNominationsToReview > 0"
         title="Nominations Awaiting Review"
         type="warning"
         :show-icon="true"
       >
         <n-flex justify="space-between" align="center">
-          <span>{{ stats.pendingNominationsToReview }} nomination(s) are pending approval or rejection.</span>
+          <span>{{ pendingNominationsToReview }} nomination(s) are pending approval or rejection.</span>
           <n-button size="small" type="warning" ghost @click="router.push('/nominations')">
             Review Now →
           </n-button>
@@ -101,7 +101,7 @@
       </n-alert>
 
       <n-alert
-        v-if="stats.pendingNominationsToReview === 0 && stats.failedNotifications === 0 && stats.pendingApplications === 0"
+        v-if="pendingNominationsToReview === 0 && stats.failedNotifications === 0 && stats.pendingApplications === 0"
         title="All caught up!"
         type="success"
         :show-icon="true"
@@ -164,6 +164,7 @@ const router = useRouter();
 const stats = getDashboardStats();
 const activePeriod = ref<AwardPeriod | null>(null);
 const totalNominations = ref(0);
+const pendingNominationsToReview = ref(0);
 const recentNominations = ref<DashboardNomination[]>([]);
 const dashboardLoading = ref(false);
 const dashboardError = ref('');
@@ -190,6 +191,9 @@ async function loadDashboardNominations() {
     if (result.success && result.data) {
       totalNominations.value = result.data.totalNominations;
       recentNominations.value = result.data.recentNominations;
+      pendingNominationsToReview.value = typeof result.data.pendingNominationsToReview === 'number'
+        ? result.data.pendingNominationsToReview
+        : result.data.recentNominations.filter(nomination => nomination.approvalStatus === 'Pending').length;
     } else {
       dashboardError.value = result.error ?? 'Failed to load dashboard nominations.';
     }

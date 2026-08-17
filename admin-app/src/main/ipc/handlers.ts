@@ -316,6 +316,15 @@ export function registerIpcHandlers(): void {
           throw countError;
         }
 
+        const { count: pendingCount, error: pendingCountError } = await getSupabaseClient()
+          .from('nominations')
+          .select('id', { count: 'exact', head: true })
+          .eq('approval_status', 'Pending');
+
+        if (pendingCountError) {
+          throw pendingCountError;
+        }
+
         const { data, error } = await getSupabaseClient()
           .from('nominations')
           .select(
@@ -332,6 +341,7 @@ export function registerIpcHandlers(): void {
           success: true,
           data: {
             totalNominations: count ?? 0,
+            pendingNominationsToReview: pendingCount ?? 0,
             recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
           },
         };
