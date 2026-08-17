@@ -18,6 +18,8 @@ export const IPC_CHANNELS = {
   STUDENT_RESPONSES_LIST: 'student-responses:list',
   STUDENT_RESPONSES_UPDATE: 'student-responses:update',
   DASHBOARD_NOMINATIONS: 'dashboard:nominations',
+  MASTER_DATA_UPLOAD: 'master-data:upload',
+  MASTER_DATA_UPLOADS_LIST: 'master-data:uploads-list',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -145,4 +147,30 @@ export interface ScholarData {
   "role_of_unit"?: string,
   "staff_id"?: string,
   "semester"?: string,
+}
+export type MasterDataUploadStatus = 'Success' | 'Partial' | 'Failed';
+
+export interface MasterDataUploadError {
+  sheet: string;
+  row?: number;
+  message: string;
+}
+
+export interface MasterDataUploadPayload {
+  fileName: string;
+  bytes: ArrayBuffer;
+}
+
+export interface MasterDataUploadDraft {
+  fileName: string;
+  attemptedCount: number;
+  successfulCount: number;
+  failedCount: number;
+  status: MasterDataUploadStatus;
+  errors: MasterDataUploadError[];
+}
+
+export interface MasterDataUploadLog extends MasterDataUploadDraft {
+  id: string;
+  uploadedAt: string;
 }

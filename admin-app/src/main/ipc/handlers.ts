@@ -6,7 +6,8 @@
  * main-process operation.
  */
 
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
+import path from 'node:path';
 import {
   IPC_CHANNELS,
   IpcResult,
@@ -19,12 +20,20 @@ import {
   LecturerEmailStatus,
   NominationApprovalStatus,
   StudentResponse,
+  MasterDataUploadLog,
+  MasterDataUploadPayload,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
 import { formatError } from './ipcError';
 import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
+import {
+  buildMasterDataUploadDraft,
+  parseMasterDataWorkbook,
+  type ParsedMasterDataWorkbook,
+} from './masterDataUploadModel';
+import { JsonMasterDataUploadLogStore } from './masterDataUploadLogStore';
 
 interface AwardPeriodRow {
   id: string;
@@ -197,6 +206,9 @@ function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
 
 export function registerIpcHandlers(): void {
   const studentResponseHandlers = createStudentResponseHandlers(getSupabaseClient());
+  const masterDataUploadLogStore = new JsonMasterDataUploadLogStore(
+    path.join(app.getPath('userData'), 'master-data-upload-logs.json'),
+  );
 
   // -------------------------------------------------------------------------
   // Database handlers
@@ -408,6 +420,67 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.MASTER_DATA_UPLOADS_LIST,
+    async (): Promise<IpcResult<MasterDataUploadLog[]>> => {
+      try {
+        return { success: true, data: await masterDataUploadLogStore.list() };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.MASTER_DATA_UPLOAD,
+    async (
+      _event,
+      payload: MasterDataUploadPayload,
+    ): Promise<IpcResult<MasterDataUploadLog>> => {
+      try {
+        let parsed: ParsedMasterDataWorkbook;
+
+        try {
+          parsed = parseMasterDataWorkbook(payload.bytes);
+        } catch (err) {
+          parsed = {
+            attemptedCount: 0,
+            rejectedCount: 0,
+            records: [],
+            errors: [{ sheet: 'Workbook', message: formatError(err) }],
+          };
+        }
+
+        let successfulCount = 0;
+        let uploadError: string | undefined;
+
+        if (parsed.records.length > 0) {
+          const { data, error } = await getSupabaseClient()
+            .from('scholars')
+            .insert(parsed.records)
+            .select('id');
+
+          if (error) {
+            uploadError = formatError(error);
+          } else {
+            successfulCount = data?.length ?? parsed.records.length;
+          }
+        }
+
+        const draft = buildMasterDataUploadDraft(
+          payload.fileName,
+          parsed,
+          successfulCount,
+          uploadError,
+        );
+        const log = await masterDataUploadLogStore.append(draft);
+        return { success: true, data: log };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
   // -------------------------------------------------------------------------
   // API proxy handler — keeps API keys out of the renderer
   // -------------------------------------------------------------------------
@@ -426,8 +499,6 @@ export function registerIpcHandlers(): void {
       }
     },
   );
-
-  ipcMain.on("send-file", handleTutorList);
 
   console.log('[IPC] Handlers registered');
 }
