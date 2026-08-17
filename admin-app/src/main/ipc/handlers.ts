@@ -14,6 +14,9 @@ import {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  DashboardNominationsSummary,
+  DashboardNomination,
+  NominationApprovalStatus,
   StudentResponse,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
@@ -42,6 +45,19 @@ interface NominationRow {
   teaching_period: string;
   role_of_unit: string;
   statement_support: string;
+  created_at?: string;
+}
+
+interface DashboardNominationRow {
+  id: number;
+  student_name: string;
+  student_id: string;
+  scholar_name: string;
+  unit_code: string;
+  unit_name: string | null;
+  teaching_period: string;
+  role_of_unit: string;
+  approval_status: string;
   created_at?: string;
 }
 
@@ -91,6 +107,21 @@ function toStudentResponse(row: NominationRow): StudentResponse {
     teachingPeriod: row.teaching_period,
     roleOfUnit: row.role_of_unit,
     statementSupport: row.statement_support,
+    createdAt: row.created_at,
+  };
+}
+
+function toDashboardNomination(row: DashboardNominationRow): DashboardNomination {
+  return {
+    id: row.id,
+    studentName: row.student_name,
+    studentId: row.student_id,
+    scholarName: row.scholar_name,
+    unitCode: row.unit_code,
+    unitName: row.unit_name,
+    teachingPeriod: row.teaching_period,
+    roleOfUnit: row.role_of_unit,
+    approvalStatus: row.approval_status as NominationApprovalStatus,
     createdAt: row.created_at,
   };
 }
@@ -267,6 +298,43 @@ export function registerIpcHandlers(): void {
         }
 
         return { success: true, data: toAwardPeriod(data as AwardPeriodRow) };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.DASHBOARD_NOMINATIONS,
+    async (): Promise<IpcResult<DashboardNominationsSummary>> => {
+      try {
+        const { count, error: countError } = await getSupabaseClient()
+          .from('nominations')
+          .select('id', { count: 'exact', head: true });
+
+        if (countError) {
+          throw countError;
+        }
+
+        const { data, error } = await getSupabaseClient()
+          .from('nominations')
+          .select(
+            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,approval_status,created_at',
+          )
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        if (error) {
+          throw error;
+        }
+
+        return {
+          success: true,
+          data: {
+            totalNominations: count ?? 0,
+            recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
+          },
+        };
       } catch (err) {
         return { success: false, error: formatError(err) };
       }

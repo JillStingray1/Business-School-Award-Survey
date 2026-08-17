@@ -6,11 +6,11 @@
     <n-grid :cols="4" :x-gap="16" :y-gap="16" responsive="screen" :item-responsive="true">
       <n-gi :span="1">
         <n-card class="stat-card">
-          <n-statistic label="Total Nominations" :value="stats.totalNominations">
+          <n-statistic label="Total Nominations" :value="totalNominations">
             <template #prefix><span style="font-size: 20px;">📊</span></template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px; margin-top: 8px; display: block;">
-            {{ stats.currentPeriodNominations }} in current period
+            All records in nominations table
           </n-text>
         </n-card>
       </n-gi>
@@ -130,9 +130,17 @@
 
     <!-- ── Recent nominations ── -->
     <n-h3 style="margin: 32px 0 12px;">📝 Recent Nominations</n-h3>
+    <n-alert
+      v-if="dashboardError"
+      :title="dashboardError"
+      type="error"
+      :show-icon="true"
+      style="margin-bottom: 12px;"
+    />
     <n-data-table
       :columns="nominationColumns"
       :data="recentNominations"
+      :loading="dashboardLoading"
       :bordered="false"
       size="small"
       striped
@@ -146,19 +154,23 @@ import { useRouter } from 'vue-router';
 import {
   NH2, NH3, NGrid, NGi, NCard, NStatistic, NText, NTag, NAlert,
   NButton, NSpace, NFlex, NDescriptions, NDescriptionsItem,
-  NDataTable, NBadge,
+  NDataTable,
 } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import { getDashboardStats, NOMINATIONS } from '../data/mockData';
-import type { Nomination } from '../data/mockData';
-import type { AwardPeriod } from '../../shared/types';
+import { getDashboardStats } from '../data/mockData';
+import type { AwardPeriod, DashboardNomination } from '../../shared/types';
 
 const router = useRouter();
 const stats = getDashboardStats();
 const activePeriod = ref<AwardPeriod | null>(null);
+const totalNominations = ref(0);
+const recentNominations = ref<DashboardNomination[]>([]);
+const dashboardLoading = ref(false);
+const dashboardError = ref('');
 
 onMounted(() => {
   void loadActivePeriod();
+  void loadDashboardNominations();
 });
 
 async function loadActivePeriod() {
@@ -166,6 +178,28 @@ async function loadActivePeriod() {
   activePeriod.value = result.success && result.data
     ? result.data.find(period => period.isActive) ?? null
     : null;
+}
+
+async function loadDashboardNominations() {
+  dashboardLoading.value = true;
+  dashboardError.value = '';
+
+  try {
+    const result = await window.electronAPI.getDashboardNominations();
+
+    if (result.success && result.data) {
+      totalNominations.value = result.data.totalNominations;
+      recentNominations.value = result.data.recentNominations;
+    } else {
+      dashboardError.value = result.error ?? 'Failed to load dashboard nominations.';
+    }
+  } catch (err) {
+    dashboardError.value = err instanceof Error
+      ? err.message
+      : 'Failed to load dashboard nominations.';
+  } finally {
+    dashboardLoading.value = false;
+  }
 }
 
 const periodStatus = computed(() => {
@@ -191,8 +225,6 @@ const periodCardClass = computed(() => ({
   'period-card-error': periodStatus.value === 'Closed',
 }));
 
-const recentNominations = NOMINATIONS.slice(0, 8);
-
 function formatPeriodDate(value?: string): string {
   if (!value) return '-';
 
@@ -217,17 +249,22 @@ function statusType(status: string): 'success' | 'warning' | 'error' | 'default'
   }
 }
 
-const nominationColumns: DataTableColumns<Nomination> = [
+const nominationColumns: DataTableColumns<DashboardNomination> = [
   { title: 'ID',        key: 'id',           width: 80 },
-  { title: 'Nominee',   key: 'nomineeName',  ellipsis: { tooltip: true } },
+  { title: 'Nominee',   key: 'scholarName',  ellipsis: { tooltip: true } },
   { title: 'Unit',      key: 'unitCode',     width: 110 },
-  { title: 'Nominator', key: 'nominatorName', ellipsis: { tooltip: true } },
-  { title: 'Submitted', key: 'submittedAt',  width: 110 },
+  { title: 'Nominator', key: 'studentName', ellipsis: { tooltip: true } },
+  {
+    title: 'Submitted',
+    key: 'createdAt',
+    width: 150,
+    render: (row) => formatPeriodDate(row.createdAt),
+  },
   {
     title: 'Status',
-    key: 'status',
+    key: 'approvalStatus',
     width: 110,
-    render: (row) => h(NTag, { type: statusType(row.status), size: 'small' }, { default: () => row.status }),
+    render: (row) => h(NTag, { type: statusType(row.approvalStatus), size: 'small' }, { default: () => row.approvalStatus }),
   },
 ];
 </script>

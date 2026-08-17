@@ -145,3 +145,4 @@ vite.config.ts.timestamp-*
 
 # ignores compiled js files
 target/
+.DS_Store
