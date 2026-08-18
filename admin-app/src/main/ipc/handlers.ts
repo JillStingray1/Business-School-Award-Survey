@@ -61,6 +61,12 @@ interface DashboardNominationRow {
   created_at?: string;
 }
 
+interface NominatedTeacherRow {
+  scholar_id: number | null;
+  staff_id: string | null;
+  scholar_name: string;
+}
+
 interface SupabaseLikeError {
   message?: string;
   details?: string;
@@ -138,6 +144,18 @@ function toAwardPeriod(row: AwardPeriodRow): AwardPeriod {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function getNominatedTeacherKey(row: NominatedTeacherRow): string {
+  if (row.staff_id) {
+    return `staff:${row.staff_id}`;
+  }
+
+  if (row.scholar_id !== null) {
+    return `scholar:${row.scholar_id}`;
+  }
+
+  return `name:${row.scholar_name.trim().toLowerCase()}`;
 }
 
 function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
@@ -325,6 +343,18 @@ export function registerIpcHandlers(): void {
           throw pendingCountError;
         }
 
+        const { data: nominatedTeacherRows, error: nominatedTeachersError } = await getSupabaseClient()
+          .from('nominations')
+          .select('scholar_id,staff_id,scholar_name');
+
+        if (nominatedTeachersError) {
+          throw nominatedTeachersError;
+        }
+
+        const nominatedTeachers = new Set(
+          (nominatedTeacherRows ?? []).map(row => getNominatedTeacherKey(row as NominatedTeacherRow)),
+        ).size;
+
         const { data, error } = await getSupabaseClient()
           .from('nominations')
           .select(
@@ -341,6 +371,8 @@ export function registerIpcHandlers(): void {
           success: true,
           data: {
             totalNominations: count ?? 0,
+            nominatedTeachers,
+            submittedApplications: null,
             pendingNominationsToReview: pendingCount ?? 0,
             recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
           },

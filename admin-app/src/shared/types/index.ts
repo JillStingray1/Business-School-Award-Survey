@@ -104,6 +104,8 @@ export interface DashboardNomination {
 
 export interface DashboardNominationsSummary {
   totalNominations: number;
+  nominatedTeachers: number;
+  submittedApplications: number | null;
   pendingNominationsToReview: number;
   recentNominations: DashboardNomination[];
 }
