@@ -173,4 +173,5 @@ export interface MasterDataUploadDraft {
 export interface MasterDataUploadLog extends MasterDataUploadDraft {
   id: string;
   uploadedAt: string;
+  uploadedBy: string | null;
 }

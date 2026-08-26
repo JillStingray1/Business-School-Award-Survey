@@ -1,62 +1,109 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
-import { JsonMasterDataUploadLogStore } from './masterDataUploadLogStore';
+import {
+  MasterDataUploadLogStore,
+  type MasterDataUploadLogGateway,
+  type MasterDataUploadLogInsertRow,
+  type MasterDataUploadLogRow,
+} from './masterDataUploadLogStore';
+import type { MasterDataUploadError } from '../../shared/types';
 
-test('returns an empty history when no local log file exists', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'master-data-log-'));
+class FakeUploadLogGateway implements MasterDataUploadLogGateway {
+  insertedRow: MasterDataUploadLogInsertRow | null = null;
 
-  try {
-    const store = new JsonMasterDataUploadLogStore(path.join(directory, 'uploads.json'));
-    assert.deepEqual(await store.list(), []);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
+  constructor(
+    private readonly rows: MasterDataUploadLogRow[] = [],
+    private readonly insertedResult?: MasterDataUploadLogRow,
+  ) {}
+
+  async listRows(): Promise<MasterDataUploadLogRow[]> {
+    return this.rows;
   }
-});
 
-test('persists upload results and lists the newest upload first', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'master-data-log-'));
-  const filePath = path.join(directory, 'uploads.json');
-  const dates = [
-    new Date('2026-05-01T01:00:00.000Z'),
-    new Date('2026-05-02T01:00:00.000Z'),
-  ];
-  const ids = ['upload-1', 'upload-2'];
-  const store = new JsonMasterDataUploadLogStore(
-    filePath,
-    () => dates.shift() ?? new Date(0),
-    () => ids.shift() ?? 'fallback-id',
-  );
+  async insertRow(row: MasterDataUploadLogInsertRow): Promise<MasterDataUploadLogRow> {
+    this.insertedRow = row;
 
-  try {
-    await store.append({
-      fileName: 'first.xlsx',
-      attemptedCount: 2,
-      successfulCount: 1,
+    if (!this.insertedResult) {
+      throw new Error('No inserted result configured.');
+    }
+
+    return this.insertedResult;
+  }
+}
+
+const uploadError: MasterDataUploadError = {
+  sheet: 'Casual Tutors',
+  row: 4,
+  message: 'Missing required field: Staff Number.',
+};
+
+const databaseRow: MasterDataUploadLogRow = {
+  id: 'upload-1',
+  file_name: 'tutors.xlsx',
+  uploaded_at: '2026-08-26T01:00:00.000Z',
+  attempted_count: 3,
+  successful_count: 2,
+  failed_count: 1,
+  status: 'Partial',
+  errors: [uploadError],
+  uploaded_by: null,
+};
+
+test('maps Supabase rows to renderer upload-log objects', async () => {
+  const store = new MasterDataUploadLogStore(new FakeUploadLogGateway([databaseRow]));
+
+  assert.deepEqual(await store.list(), [
+    {
+      id: 'upload-1',
+      fileName: 'tutors.xlsx',
+      uploadedAt: '2026-08-26T01:00:00.000Z',
+      attemptedCount: 3,
+      successfulCount: 2,
       failedCount: 1,
       status: 'Partial',
-      errors: [{ sheet: 'Casual Tutors', row: 3, message: 'Missing Staff Number.' }],
-    });
-    await store.append({
-      fileName: 'second.xlsx',
-      attemptedCount: 3,
-      successfulCount: 3,
-      failedCount: 0,
-      status: 'Success',
-      errors: [],
-    });
+      errors: [uploadError],
+      uploadedBy: null,
+    },
+  ]);
+});
 
-    const reloaded = new JsonMasterDataUploadLogStore(filePath);
-    const history = await reloaded.list();
+test('inserts a snake-case database row and returns the created log', async () => {
+  const gateway = new FakeUploadLogGateway([], databaseRow);
+  const store = new MasterDataUploadLogStore(gateway);
 
-    assert.equal(history.length, 2);
-    assert.equal(history[0].id, 'upload-2');
-    assert.equal(history[0].fileName, 'second.xlsx');
-    assert.equal(history[1].errors[0].row, 3);
-    assert.equal(history[1].errors[0].message, 'Missing Staff Number.');
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+  const created = await store.append({
+    fileName: 'tutors.xlsx',
+    attemptedCount: 3,
+    successfulCount: 2,
+    failedCount: 1,
+    status: 'Partial',
+    errors: [uploadError],
+  });
+
+  assert.deepEqual(gateway.insertedRow, {
+    file_name: 'tutors.xlsx',
+    attempted_count: 3,
+    successful_count: 2,
+    failed_count: 1,
+    status: 'Partial',
+    errors: [uploadError],
+  });
+  assert.equal(created.id, 'upload-1');
+  assert.equal(created.uploadedAt, '2026-08-26T01:00:00.000Z');
+});
+
+test('ignores malformed JSON error entries returned by the database', async () => {
+  const row: MasterDataUploadLogRow = {
+    ...databaseRow,
+    errors: [
+      uploadError,
+      { sheet: 'Casual Tutors' },
+      'invalid',
+    ],
+  };
+  const store = new MasterDataUploadLogStore(new FakeUploadLogGateway([row]));
+
+  const [log] = await store.list();
+
+  assert.deepEqual(log.errors, [uploadError]);
 });

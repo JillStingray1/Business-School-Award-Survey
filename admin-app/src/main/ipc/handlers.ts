@@ -6,8 +6,7 @@
  * main-process operation.
  */
 
-import { app, ipcMain } from 'electron';
-import path from 'node:path';
+import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
   IpcResult,
@@ -19,21 +18,19 @@ import {
   DashboardNomination,
   LecturerEmailStatus,
   NominationApprovalStatus,
-  StudentResponse,
   MasterDataUploadLog,
   MasterDataUploadPayload,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
 import { formatError } from './ipcError';
-import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
 import {
   buildMasterDataUploadDraft,
   parseMasterDataWorkbook,
   type ParsedMasterDataWorkbook,
 } from './masterDataUploadModel';
-import { JsonMasterDataUploadLogStore } from './masterDataUploadLogStore';
+import { createSupabaseMasterDataUploadLogStore } from './masterDataUploadLogStore';
 
 interface AwardPeriodRow {
   id: string;
@@ -206,8 +203,8 @@ function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
 
 export function registerIpcHandlers(): void {
   const studentResponseHandlers = createStudentResponseHandlers(getSupabaseClient());
-  const masterDataUploadLogStore = new JsonMasterDataUploadLogStore(
-    path.join(app.getPath('userData'), 'master-data-upload-logs.json'),
+  const masterDataUploadLogStore = createSupabaseMasterDataUploadLogStore(
+    getSupabaseClient(),
   );
 
   // -------------------------------------------------------------------------
