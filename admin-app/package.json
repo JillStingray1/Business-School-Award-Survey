@@ -11,7 +11,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "test:viewer": "tsc -p tsconfig.viewer-tests.json && node --test .viewer-test-dist/renderer/views/studentResponseViewerModel.test.js"
+    "test:viewer": "tsc -p tsconfig.viewer-tests.json && node --test .viewer-test-dist/main/ipc/studentResponseHandlers.test.js .viewer-test-dist/renderer/views/studentResponseViewerModel.test.js"
   },
   "keywords": [],
   "author": {

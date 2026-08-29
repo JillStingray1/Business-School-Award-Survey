@@ -11,6 +11,9 @@
   },
   "include": [
     "src/shared/types/index.ts",
+    "src/main/ipc/ipcError.ts",
+    "src/main/ipc/studentResponseHandlers.ts",
+    "src/main/ipc/studentResponseHandlers.test.ts",
     "src/renderer/views/studentResponseViewerModel.ts",
     "src/renderer/views/studentResponseViewerModel.test.ts"
   ]
