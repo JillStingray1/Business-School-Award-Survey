@@ -16,6 +16,7 @@ import {
   AwardPeriodSavePayload,
   DashboardNominationsSummary,
   DashboardNomination,
+  LecturerEmailStatus,
   NominationApprovalStatus,
   StudentResponse,
 } from '../../shared/types';
@@ -65,6 +66,13 @@ interface NominatedTeacherRow {
   scholar_id: number | null;
   staff_id: string | null;
   scholar_name: string;
+}
+
+interface ScholarEmailRow {
+  id: number;
+  staff_id: string | null;
+  name: string;
+  email: string | null;
 }
 
 interface SupabaseLikeError {
@@ -156,6 +164,63 @@ function getNominatedTeacherKey(row: NominatedTeacherRow): string {
   }
 
   return `name:${row.scholar_name.trim().toLowerCase()}`;
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function getLecturerEmailStatus(
+  nominations: NominatedTeacherRow[],
+  scholars: ScholarEmailRow[],
+): LecturerEmailStatus {
+  const scholarById = new Map(scholars.map(scholar => [scholar.id, scholar]));
+  const scholarByStaffId = new Map(
+    scholars
+      .filter(scholar => hasText(scholar.staff_id))
+      .map(scholar => [scholar.staff_id as string, scholar]),
+  );
+  const scholarsByName = new Map<string, ScholarEmailRow[]>();
+
+  for (const scholar of scholars) {
+    const key = scholar.name.trim().toLowerCase();
+    const existing = scholarsByName.get(key) ?? [];
+    existing.push(scholar);
+    scholarsByName.set(key, existing);
+  }
+
+  const uniqueNominatedLecturers = new Map<string, NominatedTeacherRow>();
+
+  for (const nomination of nominations) {
+    uniqueNominatedLecturers.set(getNominatedTeacherKey(nomination), nomination);
+  }
+
+  let withEmail = 0;
+
+  for (const nomination of uniqueNominatedLecturers.values()) {
+    const matchedById = nomination.scholar_id !== null
+      ? scholarById.get(nomination.scholar_id)
+      : undefined;
+    const matchedByStaffId = hasText(nomination.staff_id)
+      ? scholarByStaffId.get(nomination.staff_id as string)
+      : undefined;
+    const matchedByName = scholarsByName.get(nomination.scholar_name.trim().toLowerCase()) ?? [];
+    const hasEmail = [matchedById, matchedByStaffId, ...matchedByName]
+      .some(scholar => hasText(scholar?.email));
+
+    if (hasEmail) {
+      withEmail += 1;
+    }
+  }
+
+  const totalLecturers = uniqueNominatedLecturers.size;
+
+  return {
+    totalLecturers,
+    withEmail,
+    missingEmail: totalLecturers - withEmail,
+    trackingConfigured: false,
+  };
 }
 
 function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
@@ -351,9 +416,24 @@ export function registerIpcHandlers(): void {
           throw nominatedTeachersError;
         }
 
+        const nominatedTeacherRecords = (nominatedTeacherRows ?? [])
+          .map(row => row as NominatedTeacherRow);
         const nominatedTeachers = new Set(
-          (nominatedTeacherRows ?? []).map(row => getNominatedTeacherKey(row as NominatedTeacherRow)),
+          nominatedTeacherRecords.map(row => getNominatedTeacherKey(row)),
         ).size;
+
+        const { data: scholarEmailRows, error: scholarEmailsError } = await getSupabaseClient()
+          .from('scholars')
+          .select('id,staff_id,name,email');
+
+        if (scholarEmailsError) {
+          throw scholarEmailsError;
+        }
+
+        const lecturerEmailStatus = getLecturerEmailStatus(
+          nominatedTeacherRecords,
+          (scholarEmailRows ?? []).map(row => row as ScholarEmailRow),
+        );
 
         const { data, error } = await getSupabaseClient()
           .from('nominations')
@@ -373,6 +453,7 @@ export function registerIpcHandlers(): void {
             totalNominations: count ?? 0,
             nominatedTeachers,
             submittedApplications: null,
+            lecturerEmailStatus,
             pendingNominationsToReview: pendingCount ?? 0,
             recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
           },

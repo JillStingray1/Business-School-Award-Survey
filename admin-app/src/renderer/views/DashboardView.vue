@@ -100,11 +100,43 @@
       </n-gi>
     </n-grid>
 
-    <!-- ── Period timeline ── -->
-    <n-h3 style="margin: 32px 0 12px;">📅 Current Period Timeline</n-h3>
+    <!-- ── Email status ── -->
+    <n-h3 style="margin: 32px 0 12px;">Email Status for Lecturers</n-h3>
+    <n-card>
+      <n-grid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" :item-responsive="true">
+        <n-gi :span="1">
+          <n-statistic label="Lecturers With Email" :value="lecturerEmailStatus.withEmail" />
+        </n-gi>
+        <n-gi :span="1">
+          <n-statistic label="Missing Email" :value="lecturerEmailStatus.missingEmail" />
+        </n-gi>
+        <n-gi :span="1">
+          <n-statistic label="Email Tracking">
+            <template #default>
+              <n-tag :type="lecturerEmailTrackingTagType" strong>
+                {{ lecturerEmailTrackingLabel }}
+              </n-tag>
+            </template>
+          </n-statistic>
+        </n-gi>
+      </n-grid>
+      <n-text depth="3" style="font-size: 12px; margin-top: 12px; display: block;">
+        Email availability is checked against nominated lecturers in the scholars table.
+      </n-text>
+    </n-card>
+
+    <!-- ── Period information ── -->
+    <n-h3 style="margin: 32px 0 12px;">Current Period Information</n-h3>
+    <n-alert
+      v-if="periodError"
+      :title="periodError"
+      type="error"
+      :show-icon="true"
+      style="margin-bottom: 12px;"
+    />
     <n-card>
       <n-descriptions :column="2" bordered label-placement="left">
-        <n-descriptions-item label="Period">{{ activePeriod?.name || 'No active period' }}</n-descriptions-item>
+        <n-descriptions-item label="Period">{{ currentPeriodName }}</n-descriptions-item>
         <n-descriptions-item label="Status">
           <n-tag :type="periodTagType">{{ periodStatus }}</n-tag>
         </n-descriptions-item>
@@ -147,15 +179,21 @@ import {
   NDataTable,
 } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import { getDashboardStats } from '../data/mockData';
-import type { AwardPeriod, DashboardNomination } from '../../shared/types';
+import type { AwardPeriod, DashboardNomination, LecturerEmailStatus } from '../../shared/types';
 
 const router = useRouter();
-const stats = getDashboardStats();
 const activePeriod = ref<AwardPeriod | null>(null);
+const periodLoading = ref(false);
+const periodError = ref('');
 const totalNominations = ref(0);
 const nominatedTeachers = ref(0);
 const submittedApplications = ref<number | null>(null);
+const lecturerEmailStatus = ref<LecturerEmailStatus>({
+  totalLecturers: 0,
+  withEmail: 0,
+  missingEmail: 0,
+  trackingConfigured: false,
+});
 const pendingNominationsToReview = ref(0);
 const recentNominations = ref<DashboardNomination[]>([]);
 const dashboardLoading = ref(false);
@@ -168,10 +206,26 @@ onMounted(() => {
 });
 
 async function loadActivePeriod() {
-  const result = await window.electronAPI.listAwardPeriods();
-  activePeriod.value = result.success && result.data
-    ? result.data.find(period => period.isActive) ?? null
-    : null;
+  periodLoading.value = true;
+  periodError.value = '';
+
+  try {
+    const result = await window.electronAPI.listAwardPeriods();
+
+    if (result.success && result.data) {
+      activePeriod.value = result.data.find(period => period.isActive) ?? null;
+    } else {
+      activePeriod.value = null;
+      periodError.value = result.error ?? 'Failed to load current period information.';
+    }
+  } catch (err) {
+    activePeriod.value = null;
+    periodError.value = err instanceof Error
+      ? err.message
+      : 'Failed to load current period information.';
+  } finally {
+    periodLoading.value = false;
+  }
 }
 
 async function loadDashboardNominations() {
@@ -192,6 +246,12 @@ async function loadDashboardNominations() {
       submittedApplications.value = typeof data.submittedApplications === 'number'
         ? data.submittedApplications
         : null;
+      lecturerEmailStatus.value = data.lecturerEmailStatus ?? {
+        totalLecturers: nominatedTeachers.value,
+        withEmail: 0,
+        missingEmail: nominatedTeachers.value,
+        trackingConfigured: false,
+      };
       pendingNominationsToReview.value = typeof data.pendingNominationsToReview === 'number'
         ? data.pendingNominationsToReview
         : data.recentNominations.filter(nomination => nomination.approvalStatus === 'Pending').length;
@@ -214,6 +274,19 @@ const applicationsSubmittedHelp = computed(() =>
     ? 'Application data not configured'
     : 'Submitted application records',
 );
+
+const lecturerEmailTrackingLabel = computed(() =>
+  lecturerEmailStatus.value.trackingConfigured ? 'Configured' : 'Not configured',
+);
+
+const lecturerEmailTrackingTagType = computed((): 'success' | 'default' =>
+  lecturerEmailStatus.value.trackingConfigured ? 'success' : 'default',
+);
+
+const currentPeriodName = computed(() => {
+  if (periodLoading.value) return 'Loading...';
+  return activePeriod.value?.name || 'No active period';
+});
 
 const pendingActionItems = computed(() => {
   const items: Array<{
@@ -238,25 +311,13 @@ const pendingActionItems = computed(() => {
     });
   }
 
-  if (stats.failedNotifications > 0) {
+  if (lecturerEmailStatus.value.missingEmail > 0) {
     items.push({
-      key: 'notification-failures',
-      title: 'Notification Delivery Failures',
-      message: `${stats.failedNotifications} email(s) failed to send.`,
+      key: 'lecturer-missing-email',
+      title: 'Lecturer Email Missing',
+      message: `${lecturerEmailStatus.value.missingEmail} nominated lecturer(s) do not have an email address.`,
       actionLabel: 'Open',
-      route: '/notifications',
-      type: 'error',
-      buttonType: 'error',
-    });
-  }
-
-  if (stats.pendingApplications > 0) {
-    items.push({
-      key: 'pending-applications',
-      title: "Nominees Haven't Submitted Yet",
-      message: `${stats.pendingApplications} invited nominee(s) have not submitted their application.`,
-      actionLabel: 'Remind',
-      route: '/notifications',
+      route: '/master-data',
       type: 'info',
       buttonType: 'info',
     });
@@ -270,6 +331,7 @@ function countUniqueNominatedTeachers(nominations: DashboardNomination[]): numbe
 }
 
 const periodStatus = computed(() => {
+  if (periodLoading.value) return 'Loading';
   if (!activePeriod.value) return 'Closed';
 
   const now = Date.now();
@@ -283,7 +345,8 @@ const periodStatus = computed(() => {
   return 'Closed';
 });
 
-const periodTagType = computed((): 'success' | 'error' => {
+const periodTagType = computed((): 'success' | 'error' | 'default' => {
+  if (periodStatus.value === 'Loading') return 'default';
   return periodStatus.value === 'Open' ? 'success' : 'error';
 });
 

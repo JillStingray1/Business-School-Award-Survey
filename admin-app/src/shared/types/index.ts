@@ -102,10 +102,18 @@ export interface DashboardNomination {
   createdAt?: string;
 }
 
+export interface LecturerEmailStatus {
+  totalLecturers: number;
+  withEmail: number;
+  missingEmail: number;
+  trackingConfigured: boolean;
+}
+
 export interface DashboardNominationsSummary {
   totalNominations: number;
   nominatedTeachers: number;
   submittedApplications: number | null;
+  lecturerEmailStatus: LecturerEmailStatus;
   pendingNominationsToReview: number;
   recentNominations: DashboardNomination[];
 }
