@@ -11,17 +11,23 @@
         <div class="pending-notice-header">
           <div>
             <div class="pending-notice-title">Pending Actions</div>
-            <div class="pending-notice-count">{{ pendingActionItems.length }} item(s) need attention</div>
+            <div class="pending-notice-count">
+              {{ pendingActionItems.length }} item(s) need attention
+              <span class="pending-notice-timer">· auto-closing in {{ pendingNoticeCountdown }}s</span>
+            </div>
           </div>
-          <n-button
-            quaternary
-            circle
-            size="tiny"
-            aria-label="Close pending actions notification"
-            @click="showPendingNotice = false"
-          >
-            x
-          </n-button>
+          <div class="pending-notice-header-actions">
+            <span class="pending-notice-countdown" aria-hidden="true">{{ pendingNoticeCountdown }}</span>
+            <n-button
+              quaternary
+              circle
+              size="tiny"
+              aria-label="Close pending actions notification"
+              @click="closePendingNotice"
+            >
+              x
+            </n-button>
+          </div>
         </div>
 
         <div class="pending-notice-list">
@@ -53,7 +59,7 @@
       <n-gi :span="1">
         <n-card class="stat-card">
           <n-statistic label="Total Nominations" :value="totalNominations">
-            <template #prefix><span style="font-size: 20px;">📊</span></template>
+            <template #prefix><span class="stat-emoji">📊</span></template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px; margin-top: 8px; display: block;">
             All records in nominations table
@@ -64,7 +70,7 @@
       <n-gi :span="1">
         <n-card class="stat-card">
           <n-statistic label="Nominated Teachers" :value="nominatedTeachers">
-            <template #prefix><span style="font-size: 20px;">👨‍🏫</span></template>
+            <template #prefix><span class="stat-emoji">👨‍🏫</span></template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px; margin-top: 8px; display: block;">
             Unique nominees in nominations table
@@ -75,7 +81,7 @@
       <n-gi :span="1">
         <n-card class="stat-card">
           <n-statistic label="Applications Submitted" :value="applicationsSubmittedValue">
-            <template #prefix><span style="font-size: 20px;">📋</span></template>
+            <template #prefix><span class="stat-emoji">📋</span></template>
           </n-statistic>
           <n-text depth="3" style="font-size: 12px; margin-top: 8px; display: block;">
             {{ applicationsSubmittedHelp }}
@@ -86,7 +92,7 @@
       <n-gi :span="1">
         <n-card class="stat-card" :class="periodCardClass">
           <n-statistic label="Period Status">
-            <template #prefix><span style="font-size: 20px;">⏰</span></template>
+            <template #prefix><span class="stat-emoji">⏰</span></template>
             <template #default>
               <n-tag :type="periodTagType" size="large" strong>
                 {{ periodStatus }}
@@ -171,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   NH2, NH3, NGrid, NGi, NCard, NStatistic, NText, NTag, NAlert,
@@ -200,9 +206,27 @@ const dashboardLoading = ref(false);
 const dashboardError = ref('');
 const showPendingNotice = ref(true);
 
+const PENDING_NOTICE_COUNTDOWN_START = 5;
+const pendingNoticeCountdown = ref(PENDING_NOTICE_COUNTDOWN_START);
+let pendingNoticeTimer: ReturnType<typeof setInterval> | undefined;
+
+function stopPendingNoticeCountdown() {
+  clearInterval(pendingNoticeTimer);
+  pendingNoticeTimer = undefined;
+}
+
+function closePendingNotice() {
+  stopPendingNoticeCountdown();
+  showPendingNotice.value = false;
+}
+
 onMounted(() => {
   void loadActivePeriod();
   void loadDashboardNominations();
+});
+
+onBeforeUnmount(() => {
+  stopPendingNoticeCountdown();
 });
 
 async function loadActivePeriod() {
@@ -326,6 +350,22 @@ const pendingActionItems = computed(() => {
   return items;
 });
 
+// Once the pending-actions notice first appears, count down 5..1 and auto-dismiss.
+watch(
+  () => showPendingNotice.value && pendingActionItems.value.length > 0,
+  (visible) => {
+    if (!visible || pendingNoticeTimer) return;
+    pendingNoticeCountdown.value = PENDING_NOTICE_COUNTDOWN_START;
+    pendingNoticeTimer = setInterval(() => {
+      pendingNoticeCountdown.value -= 1;
+      if (pendingNoticeCountdown.value <= 0) {
+        closePendingNotice();
+      }
+    }, 1000);
+  },
+  { immediate: true },
+);
+
 function countUniqueNominatedTeachers(nominations: DashboardNomination[]): number {
   return new Set(nominations.map(nomination => nomination.scholarName.trim().toLowerCase())).size;
 }
@@ -434,6 +474,28 @@ const nominationColumns: DataTableColumns<DashboardNomination> = [
   line-height: 18px;
   color: #6b7280;
 }
+.pending-notice-timer {
+  color: #9ca3af;
+}
+.pending-notice-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pending-notice-countdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f0a020;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 .pending-notice-list {
   display: grid;
   gap: 0;
@@ -483,9 +545,26 @@ const nominationColumns: DataTableColumns<DashboardNomination> = [
   transform: translateY(-8px);
 }
 .stat-card {
+  height: 100%;
   transition: box-shadow 0.2s;
 }
 .stat-card:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+/* Keep the emoji from stretching the value line so every card's number
+   sits on the same baseline regardless of glyph metrics. */
+.stat-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  line-height: 1;
+}
+.stat-card :deep(.n-statistic-value) {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
 }
 </style>
