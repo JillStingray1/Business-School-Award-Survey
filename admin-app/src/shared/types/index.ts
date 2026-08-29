@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   PERIOD_SAVE: 'period:save',
   PERIOD_CLOSE: 'period:close',
   STUDENT_RESPONSES_LIST: 'student-responses:list',
+  DASHBOARD_NOMINATIONS: 'dashboard:nominations',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -84,6 +85,37 @@ export interface StudentResponse {
   roleOfUnit: string;
   statementSupport: string;
   createdAt?: string;
+}
+
+export type NominationApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface DashboardNomination {
+  id: number;
+  studentName: string;
+  studentId: string;
+  scholarName: string;
+  unitCode: string;
+  unitName: string | null;
+  teachingPeriod: string;
+  roleOfUnit: string;
+  approvalStatus: NominationApprovalStatus;
+  createdAt?: string;
+}
+
+export interface LecturerEmailStatus {
+  totalLecturers: number;
+  withEmail: number;
+  missingEmail: number;
+  trackingConfigured: boolean;
+}
+
+export interface DashboardNominationsSummary {
+  totalNominations: number;
+  nominatedTeachers: number;
+  submittedApplications: number | null;
+  lecturerEmailStatus: LecturerEmailStatus;
+  pendingNominationsToReview: number;
+  recentNominations: DashboardNomination[];
 }
 
 export interface IpcResult<T = unknown> {

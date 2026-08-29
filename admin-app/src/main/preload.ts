@@ -14,6 +14,7 @@ import type {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  DashboardNominationsSummary,
   StudentResponse,
 } from '../shared/types';
 
@@ -56,6 +57,10 @@ const bridge = {
 
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
     return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
+  },
+
+  getDashboardNominations(): Promise<IpcResult<DashboardNominationsSummary>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.DASHBOARD_NOMINATIONS) as Promise<IpcResult<DashboardNominationsSummary>>;
   },
 };
 
