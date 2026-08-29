@@ -155,18 +155,18 @@ function toAwardPeriod(row: AwardPeriodRow): AwardPeriod {
 }
 
 function getNominatedTeacherKey(row: NominatedTeacherRow): string {
-  if (row.staff_id) {
-    return `staff:${row.staff_id}`;
-  }
-
-  if (row.scholar_id !== null) {
-    return `scholar:${row.scholar_id}`;
+  // Dedupe by the real person. `staff_id` is the official staff identifier;
+  // `scholar_id` only identifies a teaching record (one teacher teaching a unit
+  // in a period), so the same teacher across multiple units/periods has several
+  // `scholar_id` values and must not be used to count unique teachers.
+  if (hasText(row.staff_id)) {
+    return `staff:${row.staff_id.trim()}`;
   }
 
   return `name:${row.scholar_name.trim().toLowerCase()}`;
 }
 
-function hasText(value: string | null | undefined): boolean {
+function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
