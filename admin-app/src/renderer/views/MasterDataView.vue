@@ -7,7 +7,7 @@
       <n-gi>
         <n-card title="Upload Tutor List">
           <n-upload
-            accept=".xlsx"
+            accept=".xlsx,.csv"
             :max="1"
             @change="(d) => readFileUpload(d)"
           >
@@ -21,6 +21,40 @@
               <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Casual Tutors have: | Staff Number | Unit | Unit Name | First Name | Last Name | Full Name | Department | Email | as titles</n-p>
             </n-upload-dragger>
           </n-upload>
+    <!-- Preview panel -->
+    <n-card v-if="previewData" title="Preview" style="margin-top: 16px;">
+      <n-flex :gap="8" style="margin-bottom: 12px;">
+        <n-tag type="info">Total: {{ previewData.totalRows }}</n-tag>
+        <n-tag type="success">Valid: {{ previewData.tutors.length }}</n-tag>
+        <n-tag v-if="previewData.skippedRows > 0" type="warning">Skipped: {{ previewData.skippedRows }}</n-tag>
+      </n-flex>
+      <n-alert v-if="previewData.errors.length > 0" type="warning" title="Warnings" style="margin-bottom: 12px;">
+        <ul style="padding-left:20px;">
+          <li v-for="err in previewData.errors" :key="err">{{ err }}</li>
+        </ul>
+      </n-alert>
+      <n-data-table
+        :columns="previewColumns"
+        :data="previewData.tutors"
+        :pagination="{ pageSize: 5 }"
+        :bordered="false"
+        striped
+        size="small"
+        style="margin-bottom: 16px;"
+      />
+      <n-flex justify="end" :gap="8">
+        <n-button @click="cancelUpload">Cancel</n-button>
+        <n-button type="primary" :loading="uploading" @click="confirmUpload">
+          Confirm & Upload {{ previewData.tutors.length }} Records
+        </n-button>
+      </n-flex>
+    </n-card>
+
+    <!-- Upload result -->
+    <n-alert v-if="uploadResult" :type="uploadResult.type" :title="uploadResult.title"
+      style="margin-top: 16px;" closable @close="uploadResult = null">
+      <p>{{ uploadResult.message }}</p>
+    </n-alert>
         </n-card>
       </n-gi>
     </n-grid>
@@ -106,17 +140,68 @@ const filteredUnits = computed(() => {
   );
 });
 
+const previewing = ref(false)
+const uploading  = ref(false)
+
+interface PreviewData {
+  tutors: any[]
+  totalRows: number
+  skippedRows: number
+  errors: string[]
+}
+interface UploadResult {
+  type: 'success' | 'warning' | 'error'
+  title: string
+  message: string
+  errors: string[]
+}
+
+const previewData  = ref<PreviewData | null>(null)
+const uploadResult = ref<UploadResult | null>(null)
+
 async function readFileUpload(data: { file: UploadFileInfo }) {
-  console.log("got here")
   const file = data.file.file
-    if (file) {
-      try {
-                window.electronAPI.sendFile(await file.arrayBuffer())
-                console.log("got here 1")
-      } catch (err) {
-                console.error('Error reading file:', err);
-    }
+  if (!file) return
+  uploadResult.value = null
+  previewData.value  = null
+  previewing.value   = true
+  try {
+    const buffer = await file.arrayBuffer()
+    const result = await (window as any).electronAPI.previewTutorList(buffer)
+    if (!result.success) { message.error(`Parse error: ${result.error}`); return }
+    previewData.value = result.data
+    message.info(`Found ${result.data.tutors.length} valid records. Please review and confirm.`)
+  } catch (err) {
+    message.error(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    previewing.value = false
   }
+}
+
+async function confirmUpload() {
+  if (!previewData.value || previewData.value.tutors.length === 0) return
+  uploading.value = true
+  try {
+    const result = await (window as any).electronAPI.uploadTutors(JSON.parse(JSON.stringify(previewData.value.tutors)))
+    const { inserted, errors } = result.data
+    uploadResult.value = {
+      type:    errors.length > 0 ? 'warning' : 'success',
+      title:   errors.length > 0 ? 'Partially Successful' : 'Upload Successful',
+      message: `${inserted} record(s) uploaded.`,
+      errors,
+    }
+    previewData.value = null
+    message.success(`${inserted} records uploaded!`)
+  } catch (err) {
+    message.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    uploading.value = false
+  }
+}
+
+function cancelUpload() {
+  previewData.value  = null
+  uploadResult.value = null
 }
 
 function statusTagType(status: string): 'success' | 'warning' | 'error' {
@@ -126,6 +211,14 @@ function statusTagType(status: string): 'success' | 'warning' | 'error' {
     default:        return 'error';
   }
 }
+
+const previewColumns: DataTableColumns = [
+  { title: 'Name',      key: 'name',         minWidth: 160 },
+  { title: 'Unit Code', key: 'unit',         width: 110 },
+  { title: 'Unit Name', key: 'unit_name',    minWidth: 160 },
+  { title: 'Role',      key: 'role_of_unit', width: 100 },
+  { title: 'Staff ID',  key: 'staff_id',     width: 100 },
+]
 
 const historyColumns: DataTableColumns<MasterDataUpload> = [
   { title: 'ID',         key: 'id',          width: 90 },
