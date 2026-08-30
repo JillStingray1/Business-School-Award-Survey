@@ -15,6 +15,7 @@ The project uses a Supabase PostgreSQL database.
 | `award_periods` | Stores the opening and closing dates for nomination and application periods.                                                   |
 | `scholars`      | Stores nominatable teaching records. Each row represents a scholar/staff member teaching a unit in a specific teaching period. |
 | `nominations`   | Stores nomination submissions made by students.                                                                                |
+| `master_data_upload_logs` | Stores audit logs for master data file uploads, including upload results and errors. |
 
 Important note: `scholars` is not only a staff-name list. It is a list of nominatable teaching options.
 
@@ -122,6 +123,33 @@ This table stores nomination form submissions.
 
 ---
 
+## 2.4 `master_data_upload_logs`
+
+This table stores audit information for master data upload operations performed through the admin application.
+
+| Column             | Type                       | Required | Description                                                                  |
+| ------------------ | -------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `id`               | `uuid`                     | Yes      | Database primary key for each upload log.                                    |
+| `file_name`        | `text`                     | Yes      | Name of the uploaded master data file.                                       |
+| `uploaded_at`      | `timestamp with time zone` | Yes      | Time when the upload was performed. Defaults to the current time.            |
+| `attempted_count`  | `integer`                  | Yes      | Number of records attempted during the upload. Defaults to `0`.              |
+| `successful_count` | `integer`                  | Yes      | Number of records successfully processed. Defaults to `0`.                   |
+| `failed_count`     | `integer`                  | Yes      | Number of records that failed to process. Defaults to `0`.                   |
+| `status`           | `text`                     | Yes      | Upload result. Allowed values are `Success`, `Partial`, and `Failed`.        |
+| `errors`           | `jsonb`                    | Yes      | Stores upload error details as a JSON array. Defaults to an empty array.     |
+| `uploaded_by`      | `uuid`                     | Optional | References the authenticated user who performed the upload, where available. |
+
+### Notes
+
+- `attempted_count` must equal `successful_count + failed_count`.
+- All upload counts must be zero or greater.
+- `status` reflects the result of the upload.
+- `errors` stores structured information about upload failures.
+- `uploaded_by` references `auth.users.id`. If that user is deleted, the value is set to `NULL`.
+- An index on `uploaded_at` supports retrieving recent upload history efficiently.
+
+---
+
 ## 3. Current Form Fields and Database Columns
 
 | Form Field                                                    | Database Table | Database Column     |
@@ -149,6 +177,8 @@ This table stores nomination form submissions.
 | Admin app: view and manage award periods     | `award_periods` | `SELECT`, `INSERT`, `UPDATE` |
 | Admin app: view student nomination responses | `nominations`   | `SELECT`                     |
 | Admin app: upload tutor data                 | `scholars`      | `INSERT`                     |
+| Admin app: record master data uploads | `master_data_upload_logs` | `INSERT`                  |
+| Admin app: view upload history        | `master_data_upload_logs` | `SELECT`                  |
 
 ### Notes for Developers
 
@@ -169,6 +199,7 @@ This table stores nomination form submissions.
 | `award_periods` | `id`        | Identifies each award period.          |
 | `scholars`      | `id`        | Identifies each teaching record row.   |
 | `nominations`   | `id`        | Identifies each nomination submission. |
+| `master_data_upload_logs` | `id` | Identifies each master data upload log. |
 
 ---
 
@@ -181,6 +212,15 @@ nominations.scholar_id → scholars.id
 ```
 
 This links a nomination to the specific teaching record selected by the student.
+
+
+`master_data_upload_logs.uploaded_by` references `auth.users.id`.
+
+```text
+master_data_upload_logs.uploaded_by → auth.users.id
+```
+
+This links an upload log to the authenticated user who performed the upload. If the user is deleted, `uploaded_by` is set to `NULL`.
 
 ---
 
@@ -205,6 +245,11 @@ This is intended to avoid duplicate teaching records while still allowing the sa
 | `award_periods` | `nomination_close_at <= application_open_at`                   | Keeps the award process in the correct order. |
 | `nominations`   | `statement_support` must contain at least 25 words             | Ensures useful nomination statements.         |
 | `nominations`   | `approval_status` must be `Pending`, `Approved`, or `Rejected` | Restricts approval status to valid values.    |
+| `master_data_upload_logs` | All counts must be `>= 0`                           | Prevents invalid negative upload counts. |
+| `master_data_upload_logs` | `attempted_count = successful_count + failed_count` | Keeps upload result counts consistent.   |
+| `master_data_upload_logs` | `status` must be `Success`, `Partial`, or `Failed`  | Restricts upload status to valid values. |
+| `master_data_upload_logs` | `errors` must be a JSON array                       | Ensures consistent error storage.        |
+| `master_data_upload_logs` | `status` must agree with successful and failed counts | Prevents inconsistent upload results. |
 
 ---
 
@@ -217,6 +262,7 @@ RLS is enabled on all three tables.
 | `award_periods` | `SELECT` active rows only  | Needed to check whether nominations are open. |
 | `scholars`      | `SELECT`                   | Needed for scholar search/autocomplete.       |
 | `nominations`   | `INSERT`                   | Needed for students to submit nominations.    |
+| `master_data_upload_logs` | No anonymous policy | Upload logs are restricted to administrative access. |
 
 ### Current Public RLS Policies
 
@@ -232,6 +278,7 @@ RLS is enabled on all three tables.
 - `nominations` can be inserted by the frontend, but should not be publicly readable.
 - Because `scholars` is publicly readable, fields stored in this table, including `email`, may be accessible through public database queries. Confirm that this exposure is intended.
 - Administrative operations are separate from these anonymous policies and should keep administrative credentials in the Electron main process rather than the public frontend.
+- RLS is enabled on `master_data_upload_logs` . No anonymous access policy is currently defined. Administrative access is handled separately by the admin application.
 
 ---
 
@@ -264,5 +311,6 @@ Use this table to record future database changes.
 | YYYY-MM-DD | Name       | Table name | Describe the change                                                                                                 | Explain why it was needed                                                                  | Describe related code updates  |
 | 2026-05-17 | Jerry      | scholars   | Removed created at and added email field                                                                            | Need to store emails for notifications, date created field is not that useful for anything | None                           |
 | 2026-08-10 | Team       | Multiple   | Updated documentation to match the current Supabase schema, constraints, RLS policies, and admin app database usage | Keep database documentation consistent with the current implementation                     | Documentation updated          |
+| 2026-08-24 | Mika       | master_data_upload_logs   | Added a table to record master data upload results, counts, errors, status and uploader information, with validation constraints and RLS enabled. | Keep an audit history of master data uploads and record failed or partially successful uploads| Admin backend should record upload results in this table |
 
 ##
