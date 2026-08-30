@@ -117,3 +117,77 @@ async function post_lecturers_to_db(supabase: SupabaseClient, lecturers: any): P
   // const { data, error } = await supabase.from("scholars").insert(lecturer_data).select()
 }
 
+export interface TutorPreviewResult {
+  tutors: ScholarData[]
+  totalRows: number
+  skippedRows: number
+  errors: string[]
+}
+
+export interface TutorUploadResult {
+  inserted: number
+  errors: string[]
+  success: boolean
+}
+
+export function previewTutorList(excel_file: Blob): TutorPreviewResult {
+  try {
+    const sheets = parse_tutor_list(excel_file)
+    const tutors: ScholarData[] = []
+    let totalRows = 0
+    let skipped = 0
+    const errors: string[] = []
+
+    // Casual Tutor sheet
+    const rawTutors = sheets['Casual Tutor'] ?? []
+    totalRows += rawTutors.length
+    rawTutors.forEach((element: any, index: number) => {
+      if (element['Full Name'] == null) { skipped++; return }
+      if (!element['Unit']) {
+        errors.push(`Tutor Row ${index + 2}: Missing Unit for "${element['Full Name']}"`)
+        skipped++; return
+      }
+      tutors.push({
+        name:         element['Full Name'],
+        unit_name:    element['Unit Name'] ?? null,
+        unit:         element['Unit'],
+        role_of_unit: 'Tutor',
+        staff_id:     element['Staff Number'] ? String(element['Staff Number']) : undefined,
+      })
+    })
+
+    // Unit Coordinator sheet
+    const rawUCs = sheets['Unic Coordinator'] ?? sheets['Unit Coordinator'] ?? sheets['Unit Coordinators'] ?? []
+    totalRows += rawUCs.length
+    rawUCs.forEach((element: any, index: number) => {
+      const coordinatorRaw = element['Coordinator']
+      const code  = element['Code']
+      const title = element['Title']
+      if (!coordinatorRaw || !code) { skipped++; return }
+
+      const match   = coordinatorRaw.trim().match(/^(.+?)\s*[\{\(]\s*(\w+)\s*[\}\)]/)
+      const name    = match ? match[1].trim() : coordinatorRaw.trim()
+      const staffId = match ? match[2].trim() : undefined
+
+      if (!name) { skipped++; return }
+      tutors.push({
+        name,
+        unit_name:    title ?? null,
+        unit:         code,
+        role_of_unit: 'Unit Coordinator',
+        staff_id:     staffId,
+      })
+    })
+
+    return { tutors, totalRows, skippedRows: skipped, errors }
+  } catch (err) {
+    return { tutors: [], totalRows: 0, skippedRows: 0, errors: [`Parse failed: ${err instanceof Error ? err.message : String(err)}`] }
+  }
+}
+
+export async function uploadTutors(tutors: ScholarData[]): Promise<TutorUploadResult> {
+  if (tutors.length === 0) return { inserted: 0, errors: ['No records to upload.'], success: false }
+  const { data, error } = await supabase.from('scholars').insert(tutors).select()
+  if (error) return { inserted: 0, errors: [error.message], success: false }
+  return { inserted: data?.length ?? tutors.length, errors: [], success: true }
+}

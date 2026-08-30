@@ -55,11 +55,21 @@ const bridge = {
     ipcRenderer.send('send-file', excel_file)
   },
 
+  previewTutorList(buffer: ArrayBuffer): Promise<IpcResult> {
+  return ipcRenderer.invoke('tutor:preview', buffer) as Promise<IpcResult>
+  },
+
+  uploadTutors(tutors: unknown[]): Promise<IpcResult> {
+    return ipcRenderer.invoke('tutor:upload', tutors) as Promise<IpcResult>
+  }, 
 
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
     return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
   },
 
+  sendEmails(payload: unknown): Promise<IpcResult> {
+  return ipcRenderer.invoke('email:send', payload) as Promise<IpcResult>;
+},
   updateStudentResponseStatus(
     payload: StudentResponseStatusUpdatePayload,
   ): Promise<IpcResult<StudentResponse>> {

@@ -22,6 +22,8 @@ import {
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
+import { handleTutorList, previewTutorList, uploadTutors } from './parse_tutors'
+import { sendNominationEmails } from './email';
 import { formatError } from './ipcError';
 import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
@@ -428,6 +430,31 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.on("send-file", handleTutorList);
+  
+  ipcMain.handle('tutor:preview', async (_event, buffer) => {
+  try {
+    return { success: true, data: previewTutorList(buffer as any) }
+  } catch (err) {
+    return { success: false, error: formatError(err) }
+  }
+})
+
+ipcMain.handle('tutor:upload', async (_event, tutors) => {
+  try {
+    return { success: true, data: await uploadTutors(tutors) }
+  } catch (err) {
+    return { success: false, error: formatError(err) }
+  }
+})
+
+  ipcMain.handle('email:send', async (_event, payload) => {
+  try {
+    const results = await sendNominationEmails(getSupabaseClient(), payload)
+    return { success: true, data: results }
+  } catch (err) {
+    return { success: false, error: formatError(err) }
+  }
+})
 
   console.log('[IPC] Handlers registered');
 }
