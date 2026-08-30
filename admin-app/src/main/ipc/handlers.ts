@@ -14,6 +14,11 @@ import {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  DashboardNominationsSummary,
+  DashboardNomination,
+  LecturerEmailStatus,
+  NominationApprovalStatus,
+  StudentResponse,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
@@ -33,6 +38,110 @@ interface AwardPeriodRow {
   updated_at?: string;
 }
 
+interface NominationRow {
+  id: number;
+  student_name: string;
+  student_id: string;
+  scholar_name: string;
+  unit_code: string;
+  unit_name: string | null;
+  teaching_period: string;
+  role_of_unit: string;
+  statement_support: string;
+  created_at?: string;
+}
+
+interface DashboardNominationRow {
+  id: number;
+  student_name: string;
+  student_id: string;
+  scholar_name: string;
+  unit_code: string;
+  unit_name: string | null;
+  teaching_period: string;
+  role_of_unit: string;
+  approval_status: string;
+  created_at?: string;
+}
+
+interface NominatedTeacherRow {
+  scholar_id: number | null;
+  staff_id: string | null;
+  scholar_name: string;
+}
+
+interface ScholarEmailRow {
+  id: number;
+  staff_id: string | null;
+  name: string;
+  email: string | null;
+}
+
+interface SupabaseLikeError {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
+function formatError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  if (typeof err === 'object' && err !== null) {
+    const supabaseError = err as SupabaseLikeError;
+    const parts = [
+      supabaseError.message,
+      supabaseError.details,
+      supabaseError.hint,
+      supabaseError.code ? `Code: ${supabaseError.code}` : undefined,
+    ].filter(Boolean);
+
+    if (parts.length > 0) {
+      if (supabaseError.code === '42501') {
+        parts.push(
+          'The current Supabase key does not have permission for this table. Add SUPABASE_SERVICE_ROLE_KEY to the local .env for the admin app, or create an explicit Supabase RLS policy for admin writes.',
+        );
+      }
+
+      return parts.join(' ');
+    }
+  }
+
+  return String(err);
+}
+
+function toStudentResponse(row: NominationRow): StudentResponse {
+  return {
+    id: row.id,
+    studentName: row.student_name,
+    studentId: row.student_id,
+    scholarName: row.scholar_name,
+    unitCode: row.unit_code,
+    unitName: row.unit_name,
+    teachingPeriod: row.teaching_period,
+    roleOfUnit: row.role_of_unit,
+    statementSupport: row.statement_support,
+    createdAt: row.created_at,
+  };
+}
+
+function toDashboardNomination(row: DashboardNominationRow): DashboardNomination {
+  return {
+    id: row.id,
+    studentName: row.student_name,
+    studentId: row.student_id,
+    scholarName: row.scholar_name,
+    unitCode: row.unit_code,
+    unitName: row.unit_name,
+    teachingPeriod: row.teaching_period,
+    roleOfUnit: row.role_of_unit,
+    approvalStatus: row.approval_status as NominationApprovalStatus,
+    createdAt: row.created_at,
+  };
+}
+
 function toAwardPeriod(row: AwardPeriodRow): AwardPeriod {
   return {
     id: row.id,
@@ -44,6 +153,75 @@ function toAwardPeriod(row: AwardPeriodRow): AwardPeriod {
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function getNominatedTeacherKey(row: NominatedTeacherRow): string {
+  // Dedupe by the real person. `staff_id` is the official staff identifier;
+  // `scholar_id` only identifies a teaching record (one teacher teaching a unit
+  // in a period), so the same teacher across multiple units/periods has several
+  // `scholar_id` values and must not be used to count unique teachers.
+  if (hasText(row.staff_id)) {
+    return `staff:${row.staff_id.trim()}`;
+  }
+
+  return `name:${row.scholar_name.trim().toLowerCase()}`;
+}
+
+function hasText(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function getLecturerEmailStatus(
+  nominations: NominatedTeacherRow[],
+  scholars: ScholarEmailRow[],
+): LecturerEmailStatus {
+  const scholarById = new Map(scholars.map(scholar => [scholar.id, scholar]));
+  const scholarByStaffId = new Map(
+    scholars
+      .filter(scholar => hasText(scholar.staff_id))
+      .map(scholar => [scholar.staff_id as string, scholar]),
+  );
+  const scholarsByName = new Map<string, ScholarEmailRow[]>();
+
+  for (const scholar of scholars) {
+    const key = scholar.name.trim().toLowerCase();
+    const existing = scholarsByName.get(key) ?? [];
+    existing.push(scholar);
+    scholarsByName.set(key, existing);
+  }
+
+  const uniqueNominatedLecturers = new Map<string, NominatedTeacherRow>();
+
+  for (const nomination of nominations) {
+    uniqueNominatedLecturers.set(getNominatedTeacherKey(nomination), nomination);
+  }
+
+  let withEmail = 0;
+
+  for (const nomination of uniqueNominatedLecturers.values()) {
+    const matchedById = nomination.scholar_id !== null
+      ? scholarById.get(nomination.scholar_id)
+      : undefined;
+    const matchedByStaffId = hasText(nomination.staff_id)
+      ? scholarByStaffId.get(nomination.staff_id as string)
+      : undefined;
+    const matchedByName = scholarsByName.get(nomination.scholar_name.trim().toLowerCase()) ?? [];
+    const hasEmail = [matchedById, matchedByStaffId, ...matchedByName]
+      .some(scholar => hasText(scholar?.email));
+
+    if (hasEmail) {
+      withEmail += 1;
+    }
+  }
+
+  const totalLecturers = uniqueNominatedLecturers.size;
+
+  return {
+    totalLecturers,
+    withEmail,
+    missingEmail: totalLecturers - withEmail,
+    trackingConfigured: false,
   };
 }
 
@@ -215,6 +393,104 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.STUDENT_RESPONSES_LIST, studentResponseHandlers.list);
   ipcMain.handle(IPC_CHANNELS.STUDENT_RESPONSES_UPDATE, studentResponseHandlers.update);
+  ipcMain.handle(
+    IPC_CHANNELS.DASHBOARD_NOMINATIONS,
+    async (): Promise<IpcResult<DashboardNominationsSummary>> => {
+      try {
+        const { count, error: countError } = await getSupabaseClient()
+          .from('nominations')
+          .select('id', { count: 'exact', head: true });
+
+        if (countError) {
+          throw countError;
+        }
+
+        const { count: pendingCount, error: pendingCountError } = await getSupabaseClient()
+          .from('nominations')
+          .select('id', { count: 'exact', head: true })
+          .eq('approval_status', 'Pending');
+
+        if (pendingCountError) {
+          throw pendingCountError;
+        }
+
+        const { data: nominatedTeacherRows, error: nominatedTeachersError } = await getSupabaseClient()
+          .from('nominations')
+          .select('scholar_id,staff_id,scholar_name');
+
+        if (nominatedTeachersError) {
+          throw nominatedTeachersError;
+        }
+
+        const nominatedTeacherRecords = (nominatedTeacherRows ?? [])
+          .map(row => row as NominatedTeacherRow);
+        const nominatedTeachers = new Set(
+          nominatedTeacherRecords.map(row => getNominatedTeacherKey(row)),
+        ).size;
+
+        const { data: scholarEmailRows, error: scholarEmailsError } = await getSupabaseClient()
+          .from('scholars')
+          .select('id,staff_id,name,email');
+
+        if (scholarEmailsError) {
+          throw scholarEmailsError;
+        }
+
+        const lecturerEmailStatus = getLecturerEmailStatus(
+          nominatedTeacherRecords,
+          (scholarEmailRows ?? []).map(row => row as ScholarEmailRow),
+        );
+
+        const { data, error } = await getSupabaseClient()
+          .from('nominations')
+          .select(
+            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,approval_status,created_at',
+          )
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        if (error) {
+          throw error;
+        }
+
+        return {
+          success: true,
+          data: {
+            totalNominations: count ?? 0,
+            nominatedTeachers,
+            submittedApplications: null,
+            lecturerEmailStatus,
+            pendingNominationsToReview: pendingCount ?? 0,
+            recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
+          },
+        };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.STUDENT_RESPONSES_LIST,
+    async (): Promise<IpcResult<StudentResponse[]>> => {
+      try {
+        const { data, error } = await getSupabaseClient()
+          .from('nominations')
+          .select(
+            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,created_at',
+          )
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          throw error;
+        }
+
+        return { success: true, data: (data ?? []).map(row => toStudentResponse(row as NominationRow)) };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
 
   // -------------------------------------------------------------------------
   // API proxy handler — keeps API keys out of the renderer
