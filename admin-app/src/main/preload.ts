@@ -14,6 +14,8 @@ import type {
   ApiRequestPayload,
   AwardPeriod,
   AwardPeriodSavePayload,
+  StudentResponseStatusUpdatePayload,
+  DashboardNominationsSummary,
   StudentResponse,
 } from '../shared/types';
 
@@ -68,6 +70,15 @@ const bridge = {
   sendEmails(payload: unknown): Promise<IpcResult> {
   return ipcRenderer.invoke('email:send', payload) as Promise<IpcResult>;
 },
+  updateStudentResponseStatus(
+    payload: StudentResponseStatusUpdatePayload,
+  ): Promise<IpcResult<StudentResponse>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_UPDATE, payload) as Promise<IpcResult<StudentResponse>>;
+  },
+    
+  getDashboardNominations(): Promise<IpcResult<DashboardNominationsSummary>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.DASHBOARD_NOMINATIONS) as Promise<IpcResult<DashboardNominationsSummary>>;
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', bridge);

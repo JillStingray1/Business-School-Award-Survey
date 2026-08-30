@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue';
+import { ref, computed, h, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   NLayout, NLayoutSider, NLayoutHeader, NLayoutContent,
@@ -67,7 +67,7 @@ import {
 } from 'naive-ui';
 import type { MenuOption } from 'naive-ui';
 import { AlertCircleOutline } from '@vicons/ionicons5';
-import { NOMINATIONS, PERIODS } from '../data/mockData';
+import type { AwardPeriod } from '../../shared/types';
 
 const router = useRouter();
 const route = useRoute();
@@ -108,18 +108,58 @@ function handleMenuSelect(key: string) {
 }
 
 // ── Top-bar derived values ────────────────────────────────────────────────
-const pendingCount = computed(() =>
-  NOMINATIONS.filter(n => n.status === 'Pending').length,
-);
+const pendingCount = ref(0);
+const activePeriod = ref<AwardPeriod | null>(null);
+const periodLoading = ref(false);
 
-const currentPeriod = computed(() =>
-  PERIODS.find(p => p.status !== 'Closed') ?? PERIODS[0],
-);
+onMounted(() => {
+  void loadPendingCount();
+  void loadActivePeriod();
+});
 
-const currentPeriodStatus = computed(() => currentPeriod.value.status);
+async function loadPendingCount() {
+  try {
+    const result = await window.electronAPI.getDashboardNominations();
+    pendingCount.value = result.success && result.data
+      ? result.data.pendingNominationsToReview
+      : 0;
+  } catch {
+    pendingCount.value = 0;
+  }
+}
+
+async function loadActivePeriod() {
+  periodLoading.value = true;
+  try {
+    const result = await window.electronAPI.listAwardPeriods();
+    activePeriod.value = result.success && result.data
+      ? result.data.find(period => period.isActive) ?? null
+      : null;
+  } catch {
+    activePeriod.value = null;
+  } finally {
+    periodLoading.value = false;
+  }
+}
+
+const currentPeriodStatus = computed(() => {
+  if (periodLoading.value) return 'Loading';
+  if (!activePeriod.value) return 'No active period';
+
+  const now = Date.now();
+  const nominationOpenAt = Date.parse(activePeriod.value.nominationOpenAt);
+  const nominationCloseAt = Date.parse(activePeriod.value.nominationCloseAt);
+  const applicationOpenAt = Date.parse(activePeriod.value.applicationOpenAt);
+  const applicationCloseAt = Date.parse(activePeriod.value.applicationCloseAt);
+
+  if (now < nominationOpenAt) return 'Upcoming';
+  if (now >= nominationOpenAt && now < nominationCloseAt) return 'Nominations Open';
+  if (now >= applicationOpenAt && now < applicationCloseAt) return 'Applications Open';
+  return 'Closed';
+});
 
 const periodTagType = computed((): 'success' | 'warning' | 'default' => {
-  switch (currentPeriod.value.status) {
+  switch (currentPeriodStatus.value) {
     case 'Nominations Open':  return 'success';
     case 'Applications Open': return 'warning';
     default:                  return 'default';
