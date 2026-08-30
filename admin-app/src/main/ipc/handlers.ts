@@ -23,7 +23,7 @@ import {
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
 import { formatError } from './ipcError';
-import { handleTutorList } from './parse_tutors';
+import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
 
 interface AwardPeriodRow {
@@ -36,19 +36,6 @@ interface AwardPeriodRow {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
-}
-
-interface NominationRow {
-  id: number;
-  student_name: string;
-  student_id: string;
-  scholar_name: string;
-  unit_code: string;
-  unit_name: string | null;
-  teaching_period: string;
-  role_of_unit: string;
-  statement_support: string;
-  created_at?: string;
 }
 
 interface DashboardNominationRow {
@@ -77,55 +64,6 @@ interface ScholarEmailRow {
   email: string | null;
 }
 
-interface SupabaseLikeError {
-  message?: string;
-  details?: string;
-  hint?: string;
-  code?: string;
-}
-
-function formatError(err: unknown): string {
-  if (err instanceof Error) {
-    return err.message;
-  }
-
-  if (typeof err === 'object' && err !== null) {
-    const supabaseError = err as SupabaseLikeError;
-    const parts = [
-      supabaseError.message,
-      supabaseError.details,
-      supabaseError.hint,
-      supabaseError.code ? `Code: ${supabaseError.code}` : undefined,
-    ].filter(Boolean);
-
-    if (parts.length > 0) {
-      if (supabaseError.code === '42501') {
-        parts.push(
-          'The current Supabase key does not have permission for this table. Add SUPABASE_SERVICE_ROLE_KEY to the local .env for the admin app, or create an explicit Supabase RLS policy for admin writes.',
-        );
-      }
-
-      return parts.join(' ');
-    }
-  }
-
-  return String(err);
-}
-
-function toStudentResponse(row: NominationRow): StudentResponse {
-  return {
-    id: row.id,
-    studentName: row.student_name,
-    studentId: row.student_id,
-    scholarName: row.scholar_name,
-    unitCode: row.unit_code,
-    unitName: row.unit_name,
-    teachingPeriod: row.teaching_period,
-    roleOfUnit: row.role_of_unit,
-    statementSupport: row.statement_support,
-    createdAt: row.created_at,
-  };
-}
 
 function toDashboardNomination(row: DashboardNominationRow): DashboardNomination {
   return {
@@ -464,28 +402,6 @@ export function registerIpcHandlers(): void {
             recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
           },
         };
-      } catch (err) {
-        return { success: false, error: formatError(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    IPC_CHANNELS.STUDENT_RESPONSES_LIST,
-    async (): Promise<IpcResult<StudentResponse[]>> => {
-      try {
-        const { data, error } = await getSupabaseClient()
-          .from('nominations')
-          .select(
-            'id,student_name,student_id,scholar_name,unit_code,unit_name,teaching_period,role_of_unit,statement_support,created_at',
-          )
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          throw error;
-        }
-
-        return { success: true, data: (data ?? []).map(row => toStudentResponse(row as NominationRow)) };
       } catch (err) {
         return { success: false, error: formatError(err) };
       }
