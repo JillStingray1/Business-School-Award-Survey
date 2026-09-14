@@ -43,7 +43,7 @@
     </n-alert>
 
     <!-- Upload history -->
-    <n-h3 style="margin-bottom: 12px;">Upload History (This Device)</n-h3>
+    <n-h3 style="margin-bottom: 12px;">Upload History</n-h3>
     <n-spin :show="historyLoading">
       <n-data-table
         :columns="historyColumns"
