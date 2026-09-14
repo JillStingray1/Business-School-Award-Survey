@@ -18,6 +18,8 @@ export const IPC_CHANNELS = {
   STUDENT_RESPONSES_LIST: 'student-responses:list',
   STUDENT_RESPONSES_UPDATE: 'student-responses:update',
   DASHBOARD_NOMINATIONS: 'dashboard:nominations',
+  TEACHING_INVITATIONS_LIST: 'teaching-invitations:list',
+  TEACHING_INVITATIONS_GENERATE: 'teaching-invitations:generate',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -125,6 +127,42 @@ export interface DashboardNominationsSummary {
   lecturerEmailStatus: LecturerEmailStatus;
   pendingNominationsToReview: number;
   recentNominations: DashboardNomination[];
+}
+
+export type TeachingInvitationStatus = 'Not invited' | 'Invited' | 'Submitted';
+
+export interface TeachingInvitationCandidate {
+  name: string;
+  email: string;
+  status: TeachingInvitationStatus;
+  invitedAt: string | null;
+  expiresAt: string | null;
+  submittedAt: string | null;
+}
+
+export interface TeachingInvitationList {
+  awardPeriodId: string;
+  awardPeriodName: string;
+  applicationClosesAt: string;
+  candidates: TeachingInvitationCandidate[];
+}
+
+export interface GenerateTeachingInvitationsPayload {
+  emails: string[];
+}
+
+export interface GeneratedTeachingInvitationLink {
+  name: string;
+  email: string;
+  magicLink: string;
+  expiresAt: string;
+  awardPeriodName: string;
+}
+
+export interface GenerateTeachingInvitationsResult {
+  generatedCount: number;
+  failed: Array<{ email: string; error: string }>;
+  links: GeneratedTeachingInvitationLink[];
 }
 
 export interface IpcResult<T = unknown> {

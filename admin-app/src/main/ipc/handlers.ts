@@ -18,7 +18,10 @@ import {
   DashboardNomination,
   LecturerEmailStatus,
   NominationApprovalStatus,
-  StudentResponse,
+  GenerateTeachingInvitationsPayload,
+  GenerateTeachingInvitationsResult,
+  TeachingInvitationCandidate,
+  TeachingInvitationList,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
@@ -62,6 +65,13 @@ interface ScholarEmailRow {
   staff_id: string | null;
   name: string;
   email: string | null;
+}
+
+interface TeachingInvitationRow {
+  email_normalized: string;
+  invited_at: string;
+  expires_at: string;
+  submitted_at: string | null;
 }
 
 
@@ -108,6 +118,102 @@ function getNominatedTeacherKey(row: NominatedTeacherRow): string {
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isAllowedTeachingAwardFormUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const isLocalHttp = url.protocol === 'http:' &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+    return url.protocol === 'https:' || isLocalHttp;
+  } catch {
+    return false;
+  }
+}
+
+async function getActiveTeachingAwardPeriod(): Promise<AwardPeriodRow> {
+  const { data, error } = await getSupabaseClient()
+    .from('award_periods')
+    .select(
+      'id,name,nomination_open_at,nomination_close_at,application_open_at,application_close_at,is_active,created_at,updated_at',
+    )
+    .eq('is_active', true)
+    .order('application_close_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error('No active award period is configured.');
+  return data as AwardPeriodRow;
+}
+
+async function listTeachingInvitationCandidates(): Promise<TeachingInvitationList> {
+  const period = await getActiveTeachingAwardPeriod();
+  const [{ data: nominationData, error: nominationError }, { data: scholarData, error: scholarError }, { data: invitationData, error: invitationError }] = await Promise.all([
+    getSupabaseClient()
+      .from('nominations')
+      .select('scholar_id,staff_id,scholar_name')
+      .eq('approval_status', 'Approved'),
+    getSupabaseClient()
+      .from('scholars')
+      .select('id,staff_id,name,email'),
+    getSupabaseClient()
+      .from('teaching_award_invitations')
+      .select('email_normalized,invited_at,expires_at,submitted_at')
+      .eq('award_period_id', period.id),
+  ]);
+
+  if (nominationError) throw nominationError;
+  if (scholarError) throw scholarError;
+  if (invitationError) throw invitationError;
+
+  const scholars = (scholarData ?? []) as ScholarEmailRow[];
+  const scholarById = new Map(scholars.map(scholar => [scholar.id, scholar]));
+  const scholarByStaffId = new Map(
+    scholars
+      .filter(scholar => hasText(scholar.staff_id))
+      .map(scholar => [String(scholar.staff_id).trim(), scholar]),
+  );
+  const scholarByName = new Map<string, ScholarEmailRow>();
+  for (const scholar of scholars) {
+    const key = scholar.name.trim().toLowerCase();
+    const existing = scholarByName.get(key);
+    if (!existing || (!hasText(existing.email) && hasText(scholar.email))) {
+      scholarByName.set(key, scholar);
+    }
+  }
+
+  const invitationByEmail = new Map(
+    ((invitationData ?? []) as TeachingInvitationRow[])
+      .map(invitation => [invitation.email_normalized, invitation]),
+  );
+  const candidatesByEmail = new Map<string, TeachingInvitationCandidate>();
+
+  for (const row of (nominationData ?? []) as NominatedTeacherRow[]) {
+    const scholar = (row.scholar_id !== null ? scholarById.get(row.scholar_id) : undefined)
+      ?? (hasText(row.staff_id) ? scholarByStaffId.get(row.staff_id.trim()) : undefined)
+      ?? scholarByName.get(row.scholar_name.trim().toLowerCase());
+    if (!hasText(scholar?.email)) continue;
+
+    const email = scholar.email.trim().toLowerCase();
+    const invitation = invitationByEmail.get(email);
+    candidatesByEmail.set(email, {
+      name: scholar.name.trim() || row.scholar_name.trim(),
+      email,
+      status: invitation?.submitted_at ? 'Submitted' : invitation ? 'Invited' : 'Not invited',
+      invitedAt: invitation?.invited_at ?? null,
+      expiresAt: invitation?.expires_at ?? null,
+      submittedAt: invitation?.submitted_at ?? null,
+    });
+  }
+
+  return {
+    awardPeriodId: period.id,
+    awardPeriodName: period.name,
+    applicationClosesAt: period.application_close_at,
+    candidates: Array.from(candidatesByEmail.values())
+      .sort((left, right) => left.name.localeCompare(right.name)),
+  };
 }
 
 function getLecturerEmailStatus(
@@ -400,6 +506,113 @@ export function registerIpcHandlers(): void {
             lecturerEmailStatus,
             pendingNominationsToReview: pendingCount ?? 0,
             recentNominations: (data ?? []).map(row => toDashboardNomination(row as DashboardNominationRow)),
+          },
+        };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.TEACHING_INVITATIONS_LIST,
+    async (): Promise<IpcResult<TeachingInvitationList>> => {
+      try {
+        return { success: true, data: await listTeachingInvitationCandidates() };
+      } catch (err) {
+        return { success: false, error: formatError(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.TEACHING_INVITATIONS_GENERATE,
+    async (
+      _event,
+      payload: GenerateTeachingInvitationsPayload,
+    ): Promise<IpcResult<GenerateTeachingInvitationsResult>> => {
+      try {
+        const requestedEmails = Array.from(new Set(
+          (payload?.emails ?? []).map(email => email.trim().toLowerCase()).filter(Boolean),
+        ));
+        if (!requestedEmails.length) {
+          throw new Error('Select at least one teacher.');
+        }
+
+        const list = await listTeachingInvitationCandidates();
+        const candidateByEmail = new Map(list.candidates.map(candidate => [candidate.email, candidate]));
+        const selected = requestedEmails.map(email => candidateByEmail.get(email));
+        if (selected.some(candidate => !candidate)) {
+          throw new Error('The teacher list changed. Refresh it and try again.');
+        }
+        if (selected.some(candidate => candidate?.status === 'Submitted')) {
+          throw new Error('A submitted application cannot receive another invitation link.');
+        }
+
+        const closesAt = Date.parse(list.applicationClosesAt);
+        if (Number.isNaN(closesAt) || closesAt <= Date.now()) {
+          throw new Error('The active award period application deadline has passed.');
+        }
+
+        const redirectTo = process.env.TEACHING_AWARD_FORM_URL?.trim();
+        if (!redirectTo || !isAllowedTeachingAwardFormUrl(redirectTo)) {
+          throw new Error(
+            'Set TEACHING_AWARD_FORM_URL to an HTTPS URL, or an http://localhost URL for local testing, in admin-app/.env.',
+          );
+        }
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          throw new Error('Set SUPABASE_SERVICE_ROLE_KEY in admin-app/.env before generating Magic Links.');
+        }
+
+        const generatedLinks: GenerateTeachingInvitationsResult['links'] = [];
+        const failed: Array<{ email: string; error: string }> = [];
+        for (const candidate of selected as TeachingInvitationCandidate[]) {
+          try {
+            // generateLink creates the one-time Auth link but does not send email.
+            const { data: linkData, error: linkError } = await getSupabaseClient().auth.admin.generateLink({
+              type: 'magiclink',
+              email: candidate.email,
+              options: { redirectTo },
+            });
+            if (linkError) throw linkError;
+
+            const actionLink = linkData.properties?.action_link;
+            if (!actionLink) throw new Error('Supabase did not return a Magic Link.');
+
+            const invitedAt = new Date().toISOString();
+            const { error: invitationError } = await getSupabaseClient()
+              .from('teaching_award_invitations')
+              .upsert({
+                award_period_id: list.awardPeriodId,
+                email: candidate.email,
+                teacher_name: candidate.name,
+                invited_at: invitedAt,
+                expires_at: list.applicationClosesAt,
+              }, { onConflict: 'award_period_id,email_normalized' });
+            if (invitationError) throw invitationError;
+
+            generatedLinks.push({
+              name: candidate.name,
+              email: candidate.email,
+              magicLink: actionLink,
+              expiresAt: list.applicationClosesAt,
+              awardPeriodName: list.awardPeriodName,
+            });
+          } catch (err) {
+            failed.push({ email: candidate.email, error: formatError(err) });
+          }
+        }
+
+        if (!generatedLinks.length) {
+          throw new Error(failed[0]?.error || 'No Magic Links were generated.');
+        }
+
+        return {
+          success: true,
+          data: {
+            generatedCount: generatedLinks.length,
+            failed,
+            links: generatedLinks,
           },
         };
       } catch (err) {

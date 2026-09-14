@@ -16,6 +16,9 @@ import type {
   AwardPeriodSavePayload,
   StudentResponseStatusUpdatePayload,
   DashboardNominationsSummary,
+  TeachingInvitationList,
+  GenerateTeachingInvitationsPayload,
+  GenerateTeachingInvitationsResult,
   StudentResponse,
 } from '../shared/types';
 
@@ -68,6 +71,19 @@ const bridge = {
     
   getDashboardNominations(): Promise<IpcResult<DashboardNominationsSummary>> {
     return ipcRenderer.invoke(IPC_CHANNELS.DASHBOARD_NOMINATIONS) as Promise<IpcResult<DashboardNominationsSummary>>;
+  },
+
+  listTeachingInvitationCandidates(): Promise<IpcResult<TeachingInvitationList>> {
+    return ipcRenderer.invoke(IPC_CHANNELS.TEACHING_INVITATIONS_LIST) as Promise<IpcResult<TeachingInvitationList>>;
+  },
+
+  generateTeachingInvitations(
+    payload: GenerateTeachingInvitationsPayload,
+  ): Promise<IpcResult<GenerateTeachingInvitationsResult>> {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.TEACHING_INVITATIONS_GENERATE,
+      payload,
+    ) as Promise<IpcResult<GenerateTeachingInvitationsResult>>;
   },
 };
 
