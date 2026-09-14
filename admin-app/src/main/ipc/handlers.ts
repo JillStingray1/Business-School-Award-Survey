@@ -438,7 +438,7 @@ export function registerIpcHandlers(): void {
         let parsed: ParsedMasterDataWorkbook;
 
         try {
-          parsed = parseMasterDataWorkbook(payload.bytes);
+          parsed = parseMasterDataWorkbook(payload.bytes, payload.fileName);
         } catch (err) {
           parsed = {
             attemptedCount: 0,

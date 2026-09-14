@@ -16,6 +16,10 @@ function workbookBytes(
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
 }
 
+function csvBytes(csv: string): ArrayBuffer {
+  return new TextEncoder().encode(csv).buffer as ArrayBuffer;
+}
+
 test('parses valid Casual Tutors rows into scholar records', () => {
   const parsed = parseMasterDataWorkbook(workbookBytes([
     {
@@ -88,6 +92,53 @@ test('reports a workbook error when the tutor sheet is missing', () => {
   assert.equal(parsed.records.length, 0);
   assert.equal(parsed.rejectedCount, 0);
   assert.match(parsed.errors[0].message, /Casual Tutor/);
+});
+
+test('parses Casual Tutor CSV rows into tutor scholar records', () => {
+  const parsed = parseMasterDataWorkbook(csvBytes([
+    'Staff Number,Unit,Unit Name,Full Name',
+    '00123456,CITS1001,Software Engineering,Jane Lee',
+  ].join('\n')), 'tutors.csv');
+
+  assert.equal(parsed.attemptedCount, 1);
+  assert.equal(parsed.rejectedCount, 0);
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.records, [{
+    name: 'Jane Lee',
+    unit: 'CITS1001',
+    unit_name: 'Software Engineering',
+    role_of_unit: 'Tutor',
+    staff_id: '00123456',
+  }]);
+});
+
+test('parses Unit Coordinator CSV rows and preserves staff number text', () => {
+  const parsed = parseMasterDataWorkbook(csvBytes([
+    'CurriculumType,Code,Title,Status,Coordinator',
+    'Unit,ACCT1101,Financial Accounting,Active,"Langa, Leo {00070409}"',
+  ].join('\n')), 'unit-coordinators.csv');
+
+  assert.equal(parsed.attemptedCount, 1);
+  assert.equal(parsed.rejectedCount, 0);
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.records, [{
+    name: 'Langa, Leo',
+    unit: 'ACCT1101',
+    unit_name: 'Financial Accounting',
+    role_of_unit: 'Unit Coordinator',
+    staff_id: '00070409',
+  }]);
+});
+
+test('reports an actionable error for CSV files with unknown columns', () => {
+  const parsed = parseMasterDataWorkbook(csvBytes([
+    'Name,Course',
+    'Jane Lee,CITS1001',
+  ].join('\n')), 'unknown.csv');
+
+  assert.equal(parsed.attemptedCount, 0);
+  assert.equal(parsed.records.length, 0);
+  assert.match(parsed.errors[0].message, /supported CSV columns/i);
 });
 
 test('builds success, partial, and failed upload summaries', () => {

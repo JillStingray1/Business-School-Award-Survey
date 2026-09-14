@@ -5,9 +5,9 @@
     <!-- Upload panel -->
     <n-grid :cols="1" :x-gap="16" :y-gap="16" style="margin-bottom: 24px;">
       <n-gi>
-        <n-card title="Upload Tutor List">
+        <n-card title="Upload Master Data">
           <n-upload
-            accept=".xlsx"
+            accept=".xlsx,.csv"
             :max="1"
             :custom-request="uploadMasterData"
             :disabled="uploading"
@@ -15,12 +15,12 @@
           >
             <n-upload-dragger>
               <n-icon size="36" style="margin-bottom: 8px;"><CloudUploadOutline /></n-icon>
-              <n-text>{{ uploading ? 'Uploading tutor list...' : 'Click or drag the Tutor list here' }}</n-text>
+              <n-text>{{ uploading ? 'Uploading master data...' : 'Click or drag a master data file here' }}</n-text>
               <n-p depth="3" style="margin-top: 4px; font-size: 12px;">
-                Format: 2 Sheets, one titled Unit Coordinators, other titled Casual Tutors
+                Accepted formats: Excel workbook (.xlsx) or one CSV file (.csv)
               </n-p>
-              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Unit Coordinators have: | CurriculumType | Code | Title | Status | Coordinator | as titles</n-p>
-              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Casual Tutors have: | Staff Number | Unit | Unit Name | First Name | Last Name | Full Name | Department | Email | as titles</n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">CSV Unit Coordinators: CurriculumType, Code, Title, Status, Coordinator</n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">CSV Casual Tutors: Staff Number, Unit, Unit Name, Full Name</n-p>
             </n-upload-dragger>
           </n-upload>
         </n-card>
@@ -119,7 +119,7 @@ function formatUploadError(error: MasterDataUploadError): string {
 }
 
 function setUploadResult(log: MasterDataUploadLog): void {
-  const details = `${log.successfulCount} lecturer(s) uploaded; ${log.failedCount} failed.`;
+  const details = `${log.successfulCount} record(s) uploaded; ${log.failedCount} failed.`;
   validationResult.value = {
     type: log.status === 'Success' ? 'success' : log.status === 'Partial' ? 'warning' : 'error',
     title: log.status === 'Success'
