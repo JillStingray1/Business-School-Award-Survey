@@ -22,10 +22,9 @@ import {
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
-import { handleTutorList, previewTutorList, uploadTutors } from './parse_tutors'
+import { handleTutorList, previewTutorList, uploadTutors } from './parseTutors';
 import { sendNominationEmails } from './email';
 import { formatError } from './ipcError';
-import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
 
 interface AwardPeriodRow {
@@ -437,24 +436,45 @@ export function registerIpcHandlers(): void {
   } catch (err) {
     return { success: false, error: formatError(err) }
   }
-})
+  })
 
-ipcMain.handle('tutor:upload', async (_event, tutors) => {
-  try {
-    return { success: true, data: await uploadTutors(tutors) }
-  } catch (err) {
-    return { success: false, error: formatError(err) }
-  }
-})
+  ipcMain.handle('tutor:upload', async (_event, payload) => {
+    try {
+      return {
+        success: true,
+        data: await uploadTutors(payload.tutors, payload.fileName),
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: formatError(err),
+      }
+    }
+  })
 
-  ipcMain.handle('email:send', async (_event, payload) => {
-  try {
-    const results = await sendNominationEmails(getSupabaseClient(), payload)
-    return { success: true, data: results }
-  } catch (err) {
-    return { success: false, error: formatError(err) }
-  }
-})
+  ipcMain.handle('tutor:history', async () => {
+    try {
+      const { data, error } = await getSupabaseClient()
+        .from('master_data_upload_logs')
+        .select(
+          'id,file_name,uploaded_at,uploaded_by,attempted_count,successful_count,failed_count,status,errors'
+        )
+        .order('uploaded_at', { ascending: false })
 
+      if (error) {
+        throw error
+      }
+
+      return {
+        success: true,
+        data,
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: formatError(err),
+      }
+    }
+  })
   console.log('[IPC] Handlers registered');
 }

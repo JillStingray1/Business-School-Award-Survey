@@ -107,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue';
+import { ref, computed, h, onMounted } from 'vue';
 import {
   NH2, NH3, NCard, NGrid, NGi, NFlex, NInput, NIcon, NText, NP,
   NUpload, NUploadDragger, NDataTable, NTag, NAlert,
@@ -115,11 +115,11 @@ import {
 } from 'naive-ui';
 import type { DataTableColumns, UploadFileInfo } from 'naive-ui';
 import { CloudUploadOutline, SearchOutline } from '@vicons/ionicons5';
-import { MASTER_DATA_UPLOADS, UNITS } from '../data/mockData';
+import { UNITS } from '../data/mockData';
 import type { MasterDataUpload, UnitRecord } from '../data/mockData';
 
 const message = useMessage();
-const uploads = ref<MasterDataUpload[]>(MASTER_DATA_UPLOADS.map(u => ({ ...u })));
+const uploads = ref<MasterDataUpload[]>([]);
 const unitSearch = ref('');
 
 interface ValidationResult {
@@ -148,7 +148,9 @@ interface PreviewData {
   totalRows: number
   skippedRows: number
   errors: string[]
+  fileName: string
 }
+
 interface UploadResult {
   type: 'success' | 'warning' | 'error'
   title: string
@@ -169,7 +171,10 @@ async function readFileUpload(data: { file: UploadFileInfo }) {
     const buffer = await file.arrayBuffer()
     const result = await (window as any).electronAPI.previewTutorList(buffer)
     if (!result.success) { message.error(`Parse error: ${result.error}`); return }
-    previewData.value = result.data
+    previewData.value = {
+      ...result.data,
+      fileName: file.name,
+    }
     message.info(`Found ${result.data.tutors.length} valid records. Please review and confirm.`)
   } catch (err) {
     message.error(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
@@ -178,22 +183,74 @@ async function readFileUpload(data: { file: UploadFileInfo }) {
   }
 }
 
+async function loadUploadHistory() {
+  try {
+    const result = await (window as any).electronAPI.listTutorUploadHistory()
+
+    if (!result.success) {
+      message.error(`Failed to load upload history: ${result.error}`)
+      return
+    }
+
+    uploads.value = result.data.map((row: any) => ({
+      id: row.id,
+      fileName: row.file_name,
+      uploadedAt: row.uploaded_at,
+      uploadedBy: row.uploaded_by ?? 'Admin',
+      recordCount: row.successful_count,
+      status: row.status,
+      errors: Array.isArray(row.errors) ? row.errors : [],
+      type: 'Tutor List',
+    }))
+  } catch (err) {
+    message.error(
+      `Failed to load upload history: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
+  }
+}
+
+onMounted(() => {
+  loadUploadHistory()
+})
+
 async function confirmUpload() {
   if (!previewData.value || previewData.value.tutors.length === 0) return
+
   uploading.value = true
+
   try {
-    const result = await (window as any).electronAPI.uploadTutors(JSON.parse(JSON.stringify(previewData.value.tutors)))
+    const result = await (window as any).electronAPI.uploadTutors({
+      tutors: JSON.parse(JSON.stringify(previewData.value.tutors)),
+      fileName: previewData.value.fileName,
+    })
+
+    if (!result.success) {
+      message.error(`Upload failed: ${result.error}`)
+      return
+    }
+
     const { inserted, errors } = result.data
+
     uploadResult.value = {
-      type:    errors.length > 0 ? 'warning' : 'success',
-      title:   errors.length > 0 ? 'Partially Successful' : 'Upload Successful',
+      type: errors.length > 0 ? 'warning' : 'success',
+      title: errors.length > 0 ? 'Partially Successful' : 'Upload Successful',
       message: `${inserted} record(s) uploaded.`,
       errors,
     }
+
     previewData.value = null
+
+    await loadUploadHistory()
+
     message.success(`${inserted} records uploaded!`)
   } catch (err) {
-    message.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`)
+    message.error(
+      `Upload failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
   } finally {
     uploading.value = false
   }
