@@ -440,9 +440,18 @@ export function registerIpcHandlers(): void {
 
 ipcMain.handle('tutor:upload', async (_event, tutors) => {
   try {
+    const uploadResult = await uploadTutors(tutors)
+
+    if (!uploadResult.success) {
+      return {
+        success: false,
+        error: uploadResult.errors.join(', ') || 'Upload failed.',
+      }
+    }
+
     return {
       success: true,
-      data: await uploadTutors(tutors),
+      data: uploadResult,
     }
   } catch (err) {
     return {

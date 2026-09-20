@@ -51,9 +51,20 @@
     </n-card>
 
     <!-- Upload result -->
-    <n-alert v-if="uploadResult" :type="uploadResult.type" :title="uploadResult.title"
-      style="margin-top: 16px;" closable @close="uploadResult = null">
+    <n-alert
+      v-if="uploadResult"
+      :type="uploadResult.type"
+      :title="uploadResult.title"
+      closable
+      @close="uploadResult = null"
+    >
       <p>{{ uploadResult.message }}</p>
+
+      <ul v-if="uploadResult.errors.length > 0">
+        <li v-for="error in uploadResult.errors" :key="error">
+          {{ error }}
+        </li>
+      </ul>
     </n-alert>
         </n-card>
       </n-gi>
@@ -194,8 +205,18 @@ async function confirmUpload() {
       JSON.parse(JSON.stringify(previewData.value.tutors)),
     )
 
-    if (!result.success) {
-      const errors = result.data?.errors ?? [result.error ?? 'Upload failed.']
+    if (!result.success || result.data?.success === false) {
+      const errors = result.data?.errors ?? [
+        result.error ?? 'Upload failed.',
+      ]
+
+      uploadResult.value = {
+        type: 'error',
+        title: 'Upload Failed',
+        message: 'No records were uploaded.',
+        errors,
+      }
+
       message.error(`Upload failed: ${errors.join(', ')}`)
       return
     }
