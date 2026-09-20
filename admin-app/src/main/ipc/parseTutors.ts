@@ -188,7 +188,6 @@ export function previewTutorList(excel_file: Blob): TutorPreviewResult {
 
 export async function uploadTutors(
   tutors: ScholarData[],
-  fileName: string,
 ): Promise<TutorUploadResult> {
   if (tutors.length === 0) {
     return {
@@ -203,45 +202,16 @@ export async function uploadTutors(
     .insert(tutors)
     .select()
 
-  const inserted = data?.length ?? 0
-  const errors = error ? [error.message] : []
-
-  const status = error
-    ? (inserted > 0 ? 'Partial' : 'Failed')
-    : 'Success'
-
-  const { error: logError } = await supabase
-    .from('master_data_upload_logs')
-    .insert({
-      file_name: fileName,
-      attempted_count: tutors.length,
-      successful_count: inserted,
-      failed_count: tutors.length - inserted,
-      status,
-      errors,
-    })
-
-  if (logError) {
-    return {
-      inserted,
-      errors: [
-        ...errors,
-        `Upload history could not be saved: ${logError.message}`,
-      ],
-      success: !error,
-    }
-  }
-
   if (error) {
     return {
-      inserted,
-      errors,
+      inserted: 0,
+      errors: [error.message],
       success: false,
     }
   }
 
   return {
-    inserted,
+    inserted: data?.length ?? tutors.length,
     errors: [],
     success: true,
   }

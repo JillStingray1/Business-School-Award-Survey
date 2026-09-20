@@ -107,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted } from 'vue';
+import { ref, computed, h } from 'vue';
 import {
   NH2, NH3, NCard, NGrid, NGi, NFlex, NInput, NIcon, NText, NP,
   NUpload, NUploadDragger, NDataTable, NTag, NAlert,
@@ -183,37 +183,6 @@ async function readFileUpload(data: { file: UploadFileInfo }) {
   }
 }
 
-async function loadUploadHistory() {
-  try {
-    const result = await (window as any).electronAPI.listTutorUploadHistory()
-
-    if (!result.success) {
-      message.error(`Failed to load upload history: ${result.error}`)
-      return
-    }
-
-    uploads.value = result.data.map((row: any) => ({
-      id: row.id,
-      fileName: row.file_name,
-      uploadedAt: row.uploaded_at,
-      uploadedBy: row.uploaded_by ?? 'Admin',
-      recordCount: row.successful_count,
-      status: row.status,
-      errors: Array.isArray(row.errors) ? row.errors : [],
-      type: 'Tutor List',
-    }))
-  } catch (err) {
-    message.error(
-      `Failed to load upload history: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
-  }
-}
-
-onMounted(() => {
-  loadUploadHistory()
-})
 
 async function confirmUpload() {
   if (!previewData.value || previewData.value.tutors.length === 0) return
@@ -221,10 +190,9 @@ async function confirmUpload() {
   uploading.value = true
 
   try {
-    const result = await (window as any).electronAPI.uploadTutors({
-      tutors: JSON.parse(JSON.stringify(previewData.value.tutors)),
-      fileName: previewData.value.fileName,
-    })
+    const result = await (window as any).electronAPI.uploadTutors(
+      JSON.parse(JSON.stringify(previewData.value.tutors)),
+    )
 
     if (!result.success) {
       message.error(`Upload failed: ${result.error}`)
@@ -239,10 +207,7 @@ async function confirmUpload() {
       message: `${inserted} record(s) uploaded.`,
       errors,
     }
-
     previewData.value = null
-
-    await loadUploadHistory()
 
     message.success(`${inserted} records uploaded!`)
   } catch (err) {

@@ -59,24 +59,8 @@ const bridge = {
   return ipcRenderer.invoke('tutor:preview', buffer) as Promise<IpcResult>
   },
 
-  // uploadTutors(tutors: unknown[]): Promise<IpcResult> {
-  //   return ipcRenderer.invoke('tutor:upload', tutors) as Promise<IpcResult>
-  // }, 
-
-  uploadTutors(payload: {
-    tutors: unknown[]
-    fileName: string
-  }): Promise<IpcResult> {
-    return ipcRenderer.invoke(
-      'tutor:upload',
-      payload,
-    ) as Promise<IpcResult>
-  },
-
-  listTutorUploadHistory(): Promise<IpcResult> {
-    return ipcRenderer.invoke(
-      'tutor:history',
-    ) as Promise<IpcResult>
+  uploadTutors(tutors: unknown[]): Promise<IpcResult> {
+    return ipcRenderer.invoke('tutor:upload', tutors) as Promise<IpcResult>
   },
 
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
