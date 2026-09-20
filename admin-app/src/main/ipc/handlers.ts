@@ -23,7 +23,7 @@ import {
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
 import { handleTutorList, previewTutorList, uploadTutors } from './parseTutors';
-import { sendNominationEmails } from './email';
+//import { sendNominationEmails } from './email';
 import { formatError } from './ipcError';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
 

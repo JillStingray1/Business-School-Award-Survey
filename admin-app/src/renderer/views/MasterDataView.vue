@@ -195,7 +195,8 @@ async function confirmUpload() {
     )
 
     if (!result.success) {
-      message.error(`Upload failed: ${result.error}`)
+      const errors = result.data?.errors ?? [result.error ?? 'Upload failed.']
+      message.error(`Upload failed: ${errors.join(', ')}`)
       return
     }
 

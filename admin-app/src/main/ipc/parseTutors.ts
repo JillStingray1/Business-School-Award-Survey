@@ -139,7 +139,10 @@ export function previewTutorList(excel_file: Blob): TutorPreviewResult {
     const errors: string[] = []
 
     // Casual Tutor sheet
-    const rawTutors = sheets['Casual Tutor'] ?? []
+    const rawTutors =
+      sheets['Casual Tutors'] ??
+      sheets['Casual Tutor'] ??
+      []
     totalRows += rawTutors.length
     rawTutors.forEach((element: any, index: number) => {
       if (element['Full Name'] == null) { skipped++; return }
