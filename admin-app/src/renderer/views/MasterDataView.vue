@@ -23,6 +23,51 @@
               <n-p depth="3" style="margin-top: 4px; font-size: 12px;">CSV Casual Tutors: Staff Number, Unit, Unit Name, Full Name</n-p>
             </n-upload-dragger>
           </n-upload>
+    <!-- Preview panel -->
+    <n-card v-if="previewData" title="Preview" style="margin-top: 16px;">
+      <n-flex :gap="8" style="margin-bottom: 12px;">
+        <n-tag type="info">Total: {{ previewData.totalRows }}</n-tag>
+        <n-tag type="success">Valid: {{ previewData.tutors.length }}</n-tag>
+        <n-tag v-if="previewData.skippedRows > 0" type="warning">Skipped: {{ previewData.skippedRows }}</n-tag>
+      </n-flex>
+      <n-alert v-if="previewData.errors.length > 0" type="warning" title="Warnings" style="margin-bottom: 12px;">
+        <ul style="padding-left:20px;">
+          <li v-for="err in previewData.errors" :key="err">{{ err }}</li>
+        </ul>
+      </n-alert>
+      <n-data-table
+        :columns="previewColumns"
+        :data="previewData.tutors"
+        :pagination="{ pageSize: 5 }"
+        :bordered="false"
+        striped
+        size="small"
+        style="margin-bottom: 16px;"
+      />
+      <n-flex justify="end" :gap="8">
+        <n-button @click="cancelUpload">Cancel</n-button>
+        <n-button type="primary" :loading="uploading" @click="confirmUpload">
+          Confirm & Upload {{ previewData.tutors.length }} Records
+        </n-button>
+      </n-flex>
+    </n-card>
+
+    <!-- Upload result -->
+    <n-alert
+      v-if="uploadResult"
+      :type="uploadResult.type"
+      :title="uploadResult.title"
+      closable
+      @close="uploadResult = null"
+    >
+      <p>{{ uploadResult.message }}</p>
+
+      <ul v-if="uploadResult.errors.length > 0">
+        <li v-for="error in uploadResult.errors" :key="error">
+          {{ error }}
+        </li>
+      </ul>
+    </n-alert>
         </n-card>
       </n-gi>
     </n-grid>
