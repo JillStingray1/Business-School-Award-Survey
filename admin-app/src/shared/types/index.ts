@@ -20,6 +20,8 @@ export const IPC_CHANNELS = {
   DASHBOARD_NOMINATIONS: 'dashboard:nominations',
   TEACHING_INVITATIONS_LIST: 'teaching-invitations:list',
   TEACHING_INVITATIONS_GENERATE: 'teaching-invitations:generate',
+  MASTER_DATA_UPLOAD: 'master-data:upload',
+  MASTER_DATA_UPLOADS_LIST: 'master-data:uploads-list',
 
   // API proxy
   API_REQUEST: 'api:request',
@@ -132,9 +134,11 @@ export interface DashboardNominationsSummary {
 export type TeachingInvitationStatus = 'Not invited' | 'Invited' | 'Submitted';
 
 export interface TeachingInvitationCandidate {
+  staffId: string;
   name: string;
   email: string;
   status: TeachingInvitationStatus;
+  invitationId: string | null;
   invitedAt: string | null;
   expiresAt: string | null;
   submittedAt: string | null;
@@ -148,7 +152,7 @@ export interface TeachingInvitationList {
 }
 
 export interface GenerateTeachingInvitationsPayload {
-  emails: string[];
+  staffIds: string[];
 }
 
 export interface GeneratedTeachingInvitationLink {
@@ -183,4 +187,31 @@ export interface ScholarData {
   "role_of_unit"?: string,
   "staff_id"?: string,
   "semester"?: string,
+}
+export type MasterDataUploadStatus = 'Success' | 'Partial' | 'Failed';
+
+export interface MasterDataUploadError {
+  sheet: string;
+  row?: number;
+  message: string;
+}
+
+export interface MasterDataUploadPayload {
+  fileName: string;
+  bytes: ArrayBuffer;
+}
+
+export interface MasterDataUploadDraft {
+  fileName: string;
+  attemptedCount: number;
+  successfulCount: number;
+  failedCount: number;
+  status: MasterDataUploadStatus;
+  errors: MasterDataUploadError[];
+}
+
+export interface MasterDataUploadLog extends MasterDataUploadDraft {
+  id: string;
+  uploadedAt: string;
+  uploadedBy: string | null;
 }

@@ -25,9 +25,18 @@ import {
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
+import { handleTutorList, previewTutorList, uploadTutors } from './parseTutors';
+//import { sendNominationEmails } from './email';
 import { formatError } from './ipcError';
-import { handleTutorList } from './parseTutors';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
+import { createMasterDataHandlers } from './masterDataHandlers';
+import { createSupabaseMasterDataUploadLogStore } from './masterDataUploadLogStore';
+import {
+  buildTeachingInvitationCandidates,
+  ApprovedTeachingNomination,
+  TeachingInvitationRecord,
+  TeachingScholar,
+} from './teachingInvitationCandidates';
 
 interface AwardPeriodRow {
   id: string;
@@ -65,13 +74,6 @@ interface ScholarEmailRow {
   staff_id: string | null;
   name: string;
   email: string | null;
-}
-
-interface TeachingInvitationRow {
-  email_normalized: string;
-  invited_at: string;
-  expires_at: string;
-  submitted_at: string | null;
 }
 
 
@@ -152,14 +154,17 @@ async function listTeachingInvitationCandidates(): Promise<TeachingInvitationLis
   const [{ data: nominationData, error: nominationError }, { data: scholarData, error: scholarError }, { data: invitationData, error: invitationError }] = await Promise.all([
     getSupabaseClient()
       .from('nominations')
-      .select('scholar_id,staff_id,scholar_name')
-      .eq('approval_status', 'Approved'),
+      .select('scholar_id,staff_id,scholar_name,created_at')
+      .eq('approval_status', 'Approved')
+      .gte('created_at', period.nomination_open_at)
+      .lt('created_at', period.nomination_close_at)
+      .order('created_at', { ascending: false }),
     getSupabaseClient()
       .from('scholars')
       .select('id,staff_id,name,email'),
     getSupabaseClient()
       .from('teaching_award_invitations')
-      .select('email_normalized,invited_at,expires_at,submitted_at')
+      .select('id,staff_id,invited_at,expires_at,submitted_at')
       .eq('award_period_id', period.id),
   ]);
 
@@ -167,52 +172,17 @@ async function listTeachingInvitationCandidates(): Promise<TeachingInvitationLis
   if (scholarError) throw scholarError;
   if (invitationError) throw invitationError;
 
-  const scholars = (scholarData ?? []) as ScholarEmailRow[];
-  const scholarById = new Map(scholars.map(scholar => [scholar.id, scholar]));
-  const scholarByStaffId = new Map(
-    scholars
-      .filter(scholar => hasText(scholar.staff_id))
-      .map(scholar => [String(scholar.staff_id).trim(), scholar]),
-  );
-  const scholarByName = new Map<string, ScholarEmailRow>();
-  for (const scholar of scholars) {
-    const key = scholar.name.trim().toLowerCase();
-    const existing = scholarByName.get(key);
-    if (!existing || (!hasText(existing.email) && hasText(scholar.email))) {
-      scholarByName.set(key, scholar);
-    }
-  }
-
-  const invitationByEmail = new Map(
-    ((invitationData ?? []) as TeachingInvitationRow[])
-      .map(invitation => [invitation.email_normalized, invitation]),
-  );
-  const candidatesByEmail = new Map<string, TeachingInvitationCandidate>();
-
-  for (const row of (nominationData ?? []) as NominatedTeacherRow[]) {
-    const scholar = (row.scholar_id !== null ? scholarById.get(row.scholar_id) : undefined)
-      ?? (hasText(row.staff_id) ? scholarByStaffId.get(row.staff_id.trim()) : undefined)
-      ?? scholarByName.get(row.scholar_name.trim().toLowerCase());
-    if (!hasText(scholar?.email)) continue;
-
-    const email = scholar.email.trim().toLowerCase();
-    const invitation = invitationByEmail.get(email);
-    candidatesByEmail.set(email, {
-      name: scholar.name.trim() || row.scholar_name.trim(),
-      email,
-      status: invitation?.submitted_at ? 'Submitted' : invitation ? 'Invited' : 'Not invited',
-      invitedAt: invitation?.invited_at ?? null,
-      expiresAt: invitation?.expires_at ?? null,
-      submittedAt: invitation?.submitted_at ?? null,
-    });
-  }
-
   return {
     awardPeriodId: period.id,
     awardPeriodName: period.name,
     applicationClosesAt: period.application_close_at,
-    candidates: Array.from(candidatesByEmail.values())
-      .sort((left, right) => left.name.localeCompare(right.name)),
+    candidates: buildTeachingInvitationCandidates(
+      (nominationData ?? []) as ApprovedTeachingNomination[],
+      (scholarData ?? []) as TeachingScholar[],
+      (invitationData ?? []) as TeachingInvitationRecord[],
+      period.nomination_open_at,
+      period.nomination_close_at,
+    ),
   };
 }
 
@@ -302,7 +272,15 @@ function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
 }
 
 export function registerIpcHandlers(): void {
-  const studentResponseHandlers = createStudentResponseHandlers(getSupabaseClient());
+  const supabaseClient = getSupabaseClient();
+  const studentResponseHandlers = createStudentResponseHandlers(supabaseClient);
+  const masterDataUploadLogStore = createSupabaseMasterDataUploadLogStore(
+    supabaseClient,
+  );
+  const masterDataHandlers = createMasterDataHandlers(
+    supabaseClient,
+    masterDataUploadLogStore,
+  );
 
   // -------------------------------------------------------------------------
   // Database handlers
@@ -514,6 +492,9 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOADS_LIST, masterDataHandlers.list);
+  ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOAD, masterDataHandlers.upload);
+
   ipcMain.handle(
     IPC_CHANNELS.TEACHING_INVITATIONS_LIST,
     async (): Promise<IpcResult<TeachingInvitationList>> => {
@@ -532,16 +513,16 @@ export function registerIpcHandlers(): void {
       payload: GenerateTeachingInvitationsPayload,
     ): Promise<IpcResult<GenerateTeachingInvitationsResult>> => {
       try {
-        const requestedEmails = Array.from(new Set(
-          (payload?.emails ?? []).map(email => email.trim().toLowerCase()).filter(Boolean),
+        const requestedStaffIds = Array.from(new Set(
+          (payload?.staffIds ?? []).map(staffId => staffId.trim()).filter(Boolean),
         ));
-        if (!requestedEmails.length) {
+        if (!requestedStaffIds.length) {
           throw new Error('Select at least one teacher.');
         }
 
         const list = await listTeachingInvitationCandidates();
-        const candidateByEmail = new Map(list.candidates.map(candidate => [candidate.email, candidate]));
-        const selected = requestedEmails.map(email => candidateByEmail.get(email));
+        const candidateByStaffId = new Map(list.candidates.map(candidate => [candidate.staffId, candidate]));
+        const selected = requestedStaffIds.map(staffId => candidateByStaffId.get(staffId));
         if (selected.some(candidate => !candidate)) {
           throw new Error('The teacher list changed. Refresh it and try again.');
         }
@@ -580,16 +561,31 @@ export function registerIpcHandlers(): void {
             if (!actionLink) throw new Error('Supabase did not return a Magic Link.');
 
             const invitedAt = new Date().toISOString();
-            const { error: invitationError } = await getSupabaseClient()
-              .from('teaching_award_invitations')
-              .upsert({
-                award_period_id: list.awardPeriodId,
-                email: candidate.email,
-                teacher_name: candidate.name,
-                invited_at: invitedAt,
-                expires_at: list.applicationClosesAt,
-              }, { onConflict: 'award_period_id,email_normalized' });
+            const invitationRow = {
+              staff_id: candidate.staffId,
+              email: candidate.email,
+              teacher_name: candidate.name,
+              invited_at: invitedAt,
+              expires_at: list.applicationClosesAt,
+            };
+            const { data: savedInvitation, error: invitationError } = candidate.invitationId
+              ? await getSupabaseClient()
+                .from('teaching_award_invitations')
+                .update(invitationRow)
+                .eq('id', candidate.invitationId)
+                .is('submitted_at', null)
+                .select('id')
+                .maybeSingle()
+              : await getSupabaseClient()
+                .from('teaching_award_invitations')
+                .insert({
+                  ...invitationRow,
+                  award_period_id: list.awardPeriodId,
+                })
+                .select('id')
+                .single();
             if (invitationError) throw invitationError;
+            if (!savedInvitation) throw new Error('This invitation was submitted while the link was being generated.');
 
             generatedLinks.push({
               name: candidate.name,
@@ -639,8 +635,6 @@ export function registerIpcHandlers(): void {
       }
     },
   );
-
-  ipcMain.on("send-file", handleTutorList);
 
   console.log('[IPC] Handlers registered');
 }

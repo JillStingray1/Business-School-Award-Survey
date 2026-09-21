@@ -13,25 +13,25 @@
       <n-flex justify="space-between" align="center" style="margin-bottom: 12px;" wrap>
         <n-text>
           <strong>{{ invitationPeriodName || 'Active award period' }}</strong>
-          · approved nominees with an email address
+          · approved nominees from this award period with a staff ID and email address
         </n-text>
         <n-flex :gap="8">
           <n-button ghost :loading="invitationLoading" @click="loadInvitationCandidates">Refresh</n-button>
           <n-button
             type="primary"
             :loading="invitationGenerating"
-            :disabled="checkedInvitationEmails.length === 0"
+            :disabled="checkedInvitationStaffIds.length === 0"
             @click="generateSelectedInvitations"
           >
-            Generate selected links ({{ checkedInvitationEmails.length }})
+            Generate selected links ({{ checkedInvitationStaffIds.length }})
           </n-button>
         </n-flex>
       </n-flex>
       <n-data-table
         :columns="invitationColumns"
         :data="invitationCandidates"
-        :row-key="row => row.email"
-        :checked-row-keys="checkedInvitationEmails"
+        :row-key="row => row.staffId"
+        :checked-row-keys="checkedInvitationStaffIds"
         :loading="invitationLoading"
         :pagination="{ pageSize: 10 }"
         :bordered="false"
@@ -154,7 +154,7 @@ const search       = ref('');
 const filterType   = ref<string | null>(null);
 const filterStatus = ref<string | null>(null);
 const invitationCandidates = ref<TeachingInvitationCandidate[]>([]);
-const checkedInvitationEmails = ref<DataTableRowKey[]>([]);
+const checkedInvitationStaffIds = ref<DataTableRowKey[]>([]);
 const invitationPeriodName = ref('');
 const invitationError = ref('');
 const invitationLoading = ref(false);
@@ -178,6 +178,7 @@ function formatInvitationDate(value: string | null): string {
 const invitationColumns: DataTableColumns<TeachingInvitationCandidate> = [
   { type: 'selection', disabled: row => row.status === 'Submitted' },
   { title: 'Teacher', key: 'name', minWidth: 160, ellipsis: { tooltip: true } },
+  { title: 'Staff ID', key: 'staffId', width: 120 },
   { title: 'School email', key: 'email', minWidth: 220, ellipsis: { tooltip: true } },
   {
     title: 'Status', key: 'status', width: 120,
@@ -191,7 +192,7 @@ const invitationColumns: DataTableColumns<TeachingInvitationCandidate> = [
 ];
 
 function handleInvitationSelection(keys: DataTableRowKey[]) {
-  checkedInvitationEmails.value = keys;
+  checkedInvitationStaffIds.value = keys;
 }
 
 async function loadInvitationCandidates() {
@@ -204,8 +205,8 @@ async function loadInvitationCandidates() {
     }
     invitationCandidates.value = result.data.candidates;
     invitationPeriodName.value = result.data.awardPeriodName;
-    checkedInvitationEmails.value = checkedInvitationEmails.value.filter(email =>
-      result.data!.candidates.some(candidate => candidate.email === email && candidate.status !== 'Submitted'),
+    checkedInvitationStaffIds.value = checkedInvitationStaffIds.value.filter(staffId =>
+      result.data!.candidates.some(candidate => candidate.staffId === staffId && candidate.status !== 'Submitted'),
     );
   } catch (error) {
     invitationCandidates.value = [];
@@ -220,7 +221,7 @@ async function generateSelectedInvitations() {
   invitationError.value = '';
   try {
     const result = await window.electronAPI.generateTeachingInvitations({
-      emails: checkedInvitationEmails.value.map(String),
+      staffIds: checkedInvitationStaffIds.value.map(String),
     });
     if (!result.success || !result.data) {
       throw new Error(result.error || 'Could not generate Magic Links.');
@@ -233,7 +234,7 @@ async function generateSelectedInvitations() {
       .join('\n');
     generatedLinks.value = result.data.links;
     message.success(`${result.data.generatedCount} Magic Link(s) generated in the app.${failedText}`);
-    checkedInvitationEmails.value = [];
+    checkedInvitationStaffIds.value = [];
     await loadInvitationCandidates();
   } catch (error) {
     invitationError.value = error instanceof Error ? error.message : String(error);
