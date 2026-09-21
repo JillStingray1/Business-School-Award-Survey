@@ -18,7 +18,6 @@ import {
   DashboardNomination,
   LecturerEmailStatus,
   NominationApprovalStatus,
-  StudentResponse,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
@@ -26,6 +25,8 @@ import { handleTutorList, previewTutorList, uploadTutors } from './parseTutors';
 //import { sendNominationEmails } from './email';
 import { formatError } from './ipcError';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
+import { createMasterDataHandlers } from './masterDataHandlers';
+import { createSupabaseMasterDataUploadLogStore } from './masterDataUploadLogStore';
 
 interface AwardPeriodRow {
   id: string;
@@ -197,7 +198,15 @@ function validatePeriodPayload(payload: AwardPeriodSavePayload): void {
 }
 
 export function registerIpcHandlers(): void {
-  const studentResponseHandlers = createStudentResponseHandlers(getSupabaseClient());
+  const supabaseClient = getSupabaseClient();
+  const studentResponseHandlers = createStudentResponseHandlers(supabaseClient);
+  const masterDataUploadLogStore = createSupabaseMasterDataUploadLogStore(
+    supabaseClient,
+  );
+  const masterDataHandlers = createMasterDataHandlers(
+    supabaseClient,
+    masterDataUploadLogStore,
+  );
 
   // -------------------------------------------------------------------------
   // Database handlers
@@ -409,6 +418,9 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOADS_LIST, masterDataHandlers.list);
+  ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOAD, masterDataHandlers.upload);
+
   // -------------------------------------------------------------------------
   // API proxy handler — keeps API keys out of the renderer
   // -------------------------------------------------------------------------
@@ -427,39 +439,6 @@ export function registerIpcHandlers(): void {
       }
     },
   );
-
-  ipcMain.on("send-file", handleTutorList);
-  
-  ipcMain.handle('tutor:preview', async (_event, buffer) => {
-  try {
-    return { success: true, data: previewTutorList(buffer as any) }
-  } catch (err) {
-    return { success: false, error: formatError(err) }
-  }
-  })
-
-ipcMain.handle('tutor:upload', async (_event, tutors) => {
-  try {
-    const uploadResult = await uploadTutors(tutors)
-
-    if (!uploadResult.success) {
-      return {
-        success: false,
-        error: uploadResult.errors.join(', ') || 'Upload failed.',
-      }
-    }
-
-    return {
-      success: true,
-      data: uploadResult,
-    }
-  } catch (err) {
-    return {
-      success: false,
-      error: formatError(err),
-    }
-  }
-})
 
   console.log('[IPC] Handlers registered');
 }

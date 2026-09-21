@@ -5,20 +5,22 @@
     <!-- Upload panel -->
     <n-grid :cols="1" :x-gap="16" :y-gap="16" style="margin-bottom: 24px;">
       <n-gi>
-        <n-card title="Upload Tutor List">
+        <n-card title="Upload Master Data">
           <n-upload
             accept=".xlsx,.csv"
             :max="1"
-            @change="(d) => readFileUpload(d)"
+            :custom-request="uploadMasterData"
+            :disabled="uploading"
+            :show-file-list="false"
           >
             <n-upload-dragger>
               <n-icon size="36" style="margin-bottom: 8px;"><CloudUploadOutline /></n-icon>
-              <n-text>Click or drag the Tutor list here</n-text>
+              <n-text>{{ uploading ? 'Uploading master data...' : 'Click or drag a master data file here' }}</n-text>
               <n-p depth="3" style="margin-top: 4px; font-size: 12px;">
-                Format: 2 Sheets, one titled Unit Coordinators, other titled Casual Tutors
+                Accepted formats: Excel workbook (.xlsx) or one CSV file (.csv)
               </n-p>
-              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Unit Coordinators have: | CurriculumType | Code | Title | Status | Coordinator | as titles</n-p>
-              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">Casual Tutors have: | Staff Number | Unit | Unit Name | First Name | Last Name | Full Name | Department | Email | as titles</n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">CSV Unit Coordinators: CurriculumType, Code, Title, Status, Coordinator</n-p>
+              <n-p depth="3" style="margin-top: 4px; font-size: 12px;">CSV Casual Tutors: Staff Number, Unit, Unit Name, Full Name</n-p>
             </n-upload-dragger>
           </n-upload>
     <!-- Preview panel -->
@@ -87,14 +89,16 @@
 
     <!-- Upload history -->
     <n-h3 style="margin-bottom: 12px;">Upload History</n-h3>
-    <n-data-table
-      :columns="historyColumns"
-      :data="uploads"
-      :pagination="{ pageSize: 8 }"
-      :bordered="false"
-      striped
-      size="small"
-    />
+    <n-spin :show="historyLoading">
+      <n-data-table
+        :columns="historyColumns"
+        :data="uploads"
+        :pagination="{ pageSize: 8 }"
+        :bordered="false"
+        striped
+        size="small"
+      />
+    </n-spin>
 
     <!-- Current master data preview -->
     <n-h3 style="margin: 28px 0 12px;">Current Unit Records (Preview)</n-h3>
@@ -118,19 +122,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue';
+import { ref, computed, h, onMounted } from 'vue';
 import {
   NH2, NH3, NCard, NGrid, NGi, NFlex, NInput, NIcon, NText, NP,
-  NUpload, NUploadDragger, NDataTable, NTag, NAlert,
+  NUpload, NUploadDragger, NDataTable, NTag, NAlert, NSpin,
   useMessage,
 } from 'naive-ui';
-import type { DataTableColumns, UploadFileInfo } from 'naive-ui';
+import type { DataTableColumns, UploadCustomRequestOptions } from 'naive-ui';
 import { CloudUploadOutline, SearchOutline } from '@vicons/ionicons5';
 import { UNITS } from '../data/mockData';
-import type { MasterDataUpload, UnitRecord } from '../data/mockData';
+import type { UnitRecord } from '../data/mockData';
+import type { MasterDataUploadError, MasterDataUploadLog } from '../../shared/types';
 
 const message = useMessage();
-const uploads = ref<MasterDataUpload[]>([]);
+const uploads = ref<MasterDataUploadLog[]>([]);
+const uploading = ref(false);
+const historyLoading = ref(false);
 const unitSearch = ref('');
 
 interface ValidationResult {
@@ -151,101 +158,90 @@ const filteredUnits = computed(() => {
   );
 });
 
-const previewing = ref(false)
-const uploading  = ref(false)
-
-interface PreviewData {
-  tutors: any[]
-  totalRows: number
-  skippedRows: number
-  errors: string[]
-  fileName: string
+function formatUploadError(error: MasterDataUploadError): string {
+  const location = error.row ? `${error.sheet}, row ${error.row}` : error.sheet;
+  return `${location}: ${error.message}`;
 }
 
-interface UploadResult {
-  type: 'success' | 'warning' | 'error'
-  title: string
-  message: string
-  errors: string[]
+function setUploadResult(log: MasterDataUploadLog): void {
+  const details = `${log.successfulCount} record(s) uploaded; ${log.failedCount} failed.`;
+  validationResult.value = {
+    type: log.status === 'Success' ? 'success' : log.status === 'Partial' ? 'warning' : 'error',
+    title: log.status === 'Success'
+      ? 'Upload completed'
+      : log.status === 'Partial'
+        ? 'Upload partially completed'
+        : 'Upload failed',
+    message: details,
+    errors: log.errors.map(formatUploadError),
+  };
 }
 
-const previewData  = ref<PreviewData | null>(null)
-const uploadResult = ref<UploadResult | null>(null)
+async function uploadMasterData(options: UploadCustomRequestOptions): Promise<void> {
+  const file = options.file.file;
 
-async function readFileUpload(data: { file: UploadFileInfo }) {
-  const file = data.file.file
-  if (!file) return
-  uploadResult.value = null
-  previewData.value  = null
-  previewing.value   = true
+  if (!file || uploading.value) {
+    options.onError();
+    return;
+  }
+
+  uploading.value = true;
+  validationResult.value = null;
+
   try {
-    const buffer = await file.arrayBuffer()
-    const result = await (window as any).electronAPI.previewTutorList(buffer)
-    if (!result.success) { message.error(`Parse error: ${result.error}`); return }
-    previewData.value = {
-      ...result.data,
+    const result = await window.electronAPI.uploadMasterData({
       fileName: file.name,
+      bytes: await file.arrayBuffer(),
+    });
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'The upload did not return a result.');
     }
-    message.info(`Found ${result.data.tutors.length} valid records. Please review and confirm.`)
+
+    uploads.value = [
+      result.data,
+      ...uploads.value.filter(upload => upload.id !== result.data?.id),
+    ];
+    setUploadResult(result.data);
+
+    if (result.data.status === 'Failed') {
+      options.onError();
+    } else {
+      options.onFinish();
+    }
   } catch (err) {
-    message.error(`Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    validationResult.value = {
+      type: 'error',
+      title: 'Upload failed',
+      message: 'The upload could not be completed or recorded.',
+      errors: [errorMessage],
+    };
+    message.error(errorMessage);
+    options.onError();
   } finally {
-    previewing.value = false
+    uploading.value = false;
   }
 }
 
-
-async function confirmUpload() {
-  if (!previewData.value || previewData.value.tutors.length === 0) return
-
-  uploading.value = true
+async function loadUploadHistory(): Promise<void> {
+  historyLoading.value = true;
 
   try {
-    const result = await (window as any).electronAPI.uploadTutors(
-      JSON.parse(JSON.stringify(previewData.value.tutors)),
-    )
-
-    if (!result.success || result.data?.success === false) {
-      const errors = result.data?.errors ?? [
-        result.error ?? 'Upload failed.',
-      ]
-
-      uploadResult.value = {
-        type: 'error',
-        title: 'Upload Failed',
-        message: 'No records were uploaded.',
-        errors,
-      }
-
-      message.error(`Upload failed: ${errors.join(', ')}`)
-      return
+    const result = await window.electronAPI.listMasterDataUploads();
+    if (!result.success) {
+      throw new Error(result.error || 'Upload history could not be loaded.');
     }
-
-    const { inserted, errors } = result.data
-
-    uploadResult.value = {
-      type: errors.length > 0 ? 'warning' : 'success',
-      title: errors.length > 0 ? 'Partially Successful' : 'Upload Successful',
-      message: `${inserted} record(s) uploaded.`,
-      errors,
-    }
-    previewData.value = null
-
-    message.success(`${inserted} records uploaded!`)
+    uploads.value = result.data ?? [];
   } catch (err) {
-    message.error(
-      `Upload failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    )
+    message.error(err instanceof Error ? err.message : String(err));
   } finally {
-    uploading.value = false
+    historyLoading.value = false;
   }
 }
 
-function cancelUpload() {
-  previewData.value  = null
-  uploadResult.value = null
+function formatUploadedAt(value: string): string {
+  return new Date(value).toLocaleString('en-AU');
 }
 
 function statusTagType(status: string): 'success' | 'warning' | 'error' {
@@ -256,20 +252,27 @@ function statusTagType(status: string): 'success' | 'warning' | 'error' {
   }
 }
 
-const previewColumns: DataTableColumns = [
-  { title: 'Name',      key: 'name',         minWidth: 160 },
-  { title: 'Unit Code', key: 'unit',         width: 110 },
-  { title: 'Unit Name', key: 'unit_name',    minWidth: 160 },
-  { title: 'Role',      key: 'role_of_unit', width: 100 },
-  { title: 'Staff ID',  key: 'staff_id',     width: 100 },
-]
-
-const historyColumns: DataTableColumns<MasterDataUpload> = [
-  { title: 'ID',         key: 'id',          width: 90 },
-  { title: 'File Name',  key: 'fileName',    minWidth: 180, ellipsis: { tooltip: true } },
-  { title: 'Type',       key: 'type',        width: 120, render: r => h(NTag, { size: 'small' }, { default: () => r.type }) },
-  { title: 'Uploaded At', key: 'uploadedAt', width: 150 },
-  { title: 'Records',    key: 'recordCount', width: 90 },
+const historyColumns: DataTableColumns<MasterDataUploadLog> = [
+  {
+    type: 'expand',
+    width: 42,
+    disabled: row => row.errors.length === 0,
+    renderExpand: row => h(
+      'ul',
+      { class: 'upload-errors' },
+      row.errors.map(error => h('li', { key: formatUploadError(error) }, formatUploadError(error))),
+    ),
+  },
+  { title: 'File Name', key: 'fileName', minWidth: 190, ellipsis: { tooltip: true } },
+  {
+    title: 'Uploaded At',
+    key: 'uploadedAt',
+    width: 190,
+    render: row => formatUploadedAt(row.uploadedAt),
+  },
+  { title: 'Attempted', key: 'attemptedCount', width: 95 },
+  { title: 'Uploaded', key: 'successfulCount', width: 95 },
+  { title: 'Failed', key: 'failedCount', width: 80 },
   {
     title: 'Status', key: 'status', width: 110,
     render: r => h(NTag, { type: statusTagType(r.status), size: 'small' }, { default: () => r.status }),
@@ -281,6 +284,8 @@ const historyColumns: DataTableColumns<MasterDataUpload> = [
       : h(NTag, { type: 'success', size: 'small' }, { default: () => 'None' }),
   },
 ];
+
+onMounted(loadUploadHistory);
 
 const unitColumns: DataTableColumns<UnitRecord> = [
   { title: 'Code',        key: 'code',        width: 110 },
@@ -295,4 +300,6 @@ const unitColumns: DataTableColumns<UnitRecord> = [
 
 <style scoped>
 .master-data-view { max-width: 1100px; }
+.upload-errors { margin: 4px 0; padding-left: 22px; }
+.upload-errors li + li { margin-top: 4px; }
 </style>
