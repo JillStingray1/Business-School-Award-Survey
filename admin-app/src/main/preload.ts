@@ -20,6 +20,8 @@ import type {
   GenerateTeachingInvitationsPayload,
   GenerateTeachingInvitationsResult,
   StudentResponse,
+  MasterDataUploadLog,
+  MasterDataUploadPayload,
 } from '../shared/types';
 
 const bridge = {
@@ -54,13 +56,33 @@ const bridge = {
   closeAwardPeriod(id: string): Promise<IpcResult<AwardPeriod>> {
     return ipcRenderer.invoke(IPC_CHANNELS.PERIOD_CLOSE, { id }) as Promise<IpcResult<AwardPeriod>>;
   },
-  sendFile(excel_file: ArrayBuffer): void {
-    ipcRenderer.send('send-file', excel_file)
+  uploadMasterData(payload: MasterDataUploadPayload): Promise<IpcResult<MasterDataUploadLog>> {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.MASTER_DATA_UPLOAD,
+      payload,
+    ) as Promise<IpcResult<MasterDataUploadLog>>;
   },
 
+  listMasterDataUploads(): Promise<IpcResult<MasterDataUploadLog[]>> {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.MASTER_DATA_UPLOADS_LIST,
+    ) as Promise<IpcResult<MasterDataUploadLog[]>>;
+  },
+
+  previewTutorList(buffer: ArrayBuffer): Promise<IpcResult> {
+  return ipcRenderer.invoke('tutor:preview', buffer) as Promise<IpcResult>
+  },
+
+  uploadTutors(tutors: unknown[]): Promise<IpcResult> {
+    return ipcRenderer.invoke('tutor:upload', tutors) as Promise<IpcResult>
+  },
 
   listStudentResponses(): Promise<IpcResult<StudentResponse[]>> {
     return ipcRenderer.invoke(IPC_CHANNELS.STUDENT_RESPONSES_LIST) as Promise<IpcResult<StudentResponse[]>>;
+  },
+
+  sendEmails(payload: unknown): Promise<IpcResult> {
+  return ipcRenderer.invoke('email:send', payload) as Promise<IpcResult>;
   },
 
   updateStudentResponseStatus(
