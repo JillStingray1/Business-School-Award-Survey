@@ -18,10 +18,6 @@ import {
   DashboardNomination,
   LecturerEmailStatus,
   NominationApprovalStatus,
-  GenerateTeachingInvitationsPayload,
-  GenerateTeachingInvitationsResult,
-  TeachingInvitationCandidate,
-  TeachingInvitationList,
 } from '../../shared/types';
 import { db, getSupabaseClient } from '../db';
 import { apiClient } from '../api';
@@ -31,12 +27,6 @@ import { formatError } from './ipcError';
 import { createStudentResponseHandlers } from './studentResponseHandlers';
 import { createMasterDataHandlers } from './masterDataHandlers';
 import { createSupabaseMasterDataUploadLogStore } from './masterDataUploadLogStore';
-import {
-  buildTeachingInvitationCandidates,
-  ApprovedTeachingNomination,
-  TeachingInvitationRecord,
-  TeachingScholar,
-} from './teachingInvitationCandidates';
 
 interface AwardPeriodRow {
   id: string;
@@ -120,70 +110,6 @@ function getNominatedTeacherKey(row: NominatedTeacherRow): string {
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
-}
-
-function isAllowedTeachingAwardFormUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    const isLocalHttp = url.protocol === 'http:' &&
-      (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
-    return url.protocol === 'https:' || isLocalHttp;
-  } catch {
-    return false;
-  }
-}
-
-async function getActiveTeachingAwardPeriod(): Promise<AwardPeriodRow> {
-  const { data, error } = await getSupabaseClient()
-    .from('award_periods')
-    .select(
-      'id,name,nomination_open_at,nomination_close_at,application_open_at,application_close_at,is_active,created_at,updated_at',
-    )
-    .eq('is_active', true)
-    .order('application_close_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) throw new Error('No active award period is configured.');
-  return data as AwardPeriodRow;
-}
-
-async function listTeachingInvitationCandidates(): Promise<TeachingInvitationList> {
-  const period = await getActiveTeachingAwardPeriod();
-  const [{ data: nominationData, error: nominationError }, { data: scholarData, error: scholarError }, { data: invitationData, error: invitationError }] = await Promise.all([
-    getSupabaseClient()
-      .from('nominations')
-      .select('scholar_id,staff_id,scholar_name,created_at')
-      .eq('approval_status', 'Approved')
-      .gte('created_at', period.nomination_open_at)
-      .lt('created_at', period.nomination_close_at)
-      .order('created_at', { ascending: false }),
-    getSupabaseClient()
-      .from('scholars')
-      .select('id,staff_id,name,email'),
-    getSupabaseClient()
-      .from('teaching_award_invitations')
-      .select('id,staff_id,invited_at,expires_at,submitted_at')
-      .eq('award_period_id', period.id),
-  ]);
-
-  if (nominationError) throw nominationError;
-  if (scholarError) throw scholarError;
-  if (invitationError) throw invitationError;
-
-  return {
-    awardPeriodId: period.id,
-    awardPeriodName: period.name,
-    applicationClosesAt: period.application_close_at,
-    candidates: buildTeachingInvitationCandidates(
-      (nominationData ?? []) as ApprovedTeachingNomination[],
-      (scholarData ?? []) as TeachingScholar[],
-      (invitationData ?? []) as TeachingInvitationRecord[],
-      period.nomination_open_at,
-      period.nomination_close_at,
-    ),
-  };
 }
 
 function getLecturerEmailStatus(
@@ -494,128 +420,6 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOADS_LIST, masterDataHandlers.list);
   ipcMain.handle(IPC_CHANNELS.MASTER_DATA_UPLOAD, masterDataHandlers.upload);
-
-  ipcMain.handle(
-    IPC_CHANNELS.TEACHING_INVITATIONS_LIST,
-    async (): Promise<IpcResult<TeachingInvitationList>> => {
-      try {
-        return { success: true, data: await listTeachingInvitationCandidates() };
-      } catch (err) {
-        return { success: false, error: formatError(err) };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    IPC_CHANNELS.TEACHING_INVITATIONS_GENERATE,
-    async (
-      _event,
-      payload: GenerateTeachingInvitationsPayload,
-    ): Promise<IpcResult<GenerateTeachingInvitationsResult>> => {
-      try {
-        const requestedStaffIds = Array.from(new Set(
-          (payload?.staffIds ?? []).map(staffId => staffId.trim()).filter(Boolean),
-        ));
-        if (!requestedStaffIds.length) {
-          throw new Error('Select at least one teacher.');
-        }
-
-        const list = await listTeachingInvitationCandidates();
-        const candidateByStaffId = new Map(list.candidates.map(candidate => [candidate.staffId, candidate]));
-        const selected = requestedStaffIds.map(staffId => candidateByStaffId.get(staffId));
-        if (selected.some(candidate => !candidate)) {
-          throw new Error('The teacher list changed. Refresh it and try again.');
-        }
-        if (selected.some(candidate => candidate?.status === 'Submitted')) {
-          throw new Error('A submitted application cannot receive another invitation link.');
-        }
-
-        const closesAt = Date.parse(list.applicationClosesAt);
-        if (Number.isNaN(closesAt) || closesAt <= Date.now()) {
-          throw new Error('The active award period application deadline has passed.');
-        }
-
-        const redirectTo = process.env.TEACHING_AWARD_FORM_URL?.trim();
-        if (!redirectTo || !isAllowedTeachingAwardFormUrl(redirectTo)) {
-          throw new Error(
-            'Set TEACHING_AWARD_FORM_URL to an HTTPS URL, or an http://localhost URL for local testing, in admin-app/.env.',
-          );
-        }
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-          throw new Error('Set SUPABASE_SERVICE_ROLE_KEY in admin-app/.env before generating Magic Links.');
-        }
-
-        const generatedLinks: GenerateTeachingInvitationsResult['links'] = [];
-        const failed: Array<{ email: string; error: string }> = [];
-        for (const candidate of selected as TeachingInvitationCandidate[]) {
-          try {
-            // generateLink creates the one-time Auth link but does not send email.
-            const { data: linkData, error: linkError } = await getSupabaseClient().auth.admin.generateLink({
-              type: 'magiclink',
-              email: candidate.email,
-              options: { redirectTo },
-            });
-            if (linkError) throw linkError;
-
-            const actionLink = linkData.properties?.action_link;
-            if (!actionLink) throw new Error('Supabase did not return a Magic Link.');
-
-            const invitedAt = new Date().toISOString();
-            const invitationRow = {
-              staff_id: candidate.staffId,
-              email: candidate.email,
-              teacher_name: candidate.name,
-              invited_at: invitedAt,
-              expires_at: list.applicationClosesAt,
-            };
-            const { data: savedInvitation, error: invitationError } = candidate.invitationId
-              ? await getSupabaseClient()
-                .from('teaching_award_invitations')
-                .update(invitationRow)
-                .eq('id', candidate.invitationId)
-                .is('submitted_at', null)
-                .select('id')
-                .maybeSingle()
-              : await getSupabaseClient()
-                .from('teaching_award_invitations')
-                .insert({
-                  ...invitationRow,
-                  award_period_id: list.awardPeriodId,
-                })
-                .select('id')
-                .single();
-            if (invitationError) throw invitationError;
-            if (!savedInvitation) throw new Error('This invitation was submitted while the link was being generated.');
-
-            generatedLinks.push({
-              name: candidate.name,
-              email: candidate.email,
-              magicLink: actionLink,
-              expiresAt: list.applicationClosesAt,
-              awardPeriodName: list.awardPeriodName,
-            });
-          } catch (err) {
-            failed.push({ email: candidate.email, error: formatError(err) });
-          }
-        }
-
-        if (!generatedLinks.length) {
-          throw new Error(failed[0]?.error || 'No Magic Links were generated.');
-        }
-
-        return {
-          success: true,
-          data: {
-            generatedCount: generatedLinks.length,
-            failed,
-            links: generatedLinks,
-          },
-        };
-      } catch (err) {
-        return { success: false, error: formatError(err) };
-      }
-    },
-  );
 
   // -------------------------------------------------------------------------
   // API proxy handler — keeps API keys out of the renderer
